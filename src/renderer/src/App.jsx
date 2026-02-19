@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Button, Tabs, Tab, TabList, TabPanel } from '@heroui/react'
+import { Button, Tabs } from '@heroui/react'
 
 export default function App() {
   const [libraries, setLibraries] = useState([])
@@ -82,53 +82,40 @@ export default function App() {
           </div>
         </div>
       </div>
- <Tabs className="w-full max-w-md">
-      <Tabs.ListContainer>
-        <Tabs.List aria-label="Options">
-          <Tabs.Tab id="overview">
-            Overview
-            <Tabs.Indicator />
-          </Tabs.Tab>
-          <Tabs.Tab id="analytics">
-            Analytics
-            <Tabs.Indicator />
-          </Tabs.Tab>
-          <Tabs.Tab id="reports">
-            Reports
-            <Tabs.Indicator />
-          </Tabs.Tab>
-        </Tabs.List>
-      </Tabs.ListContainer>
-      <Tabs.Panel className="pt-4" id="overview">
-        <p>View your project overview and recent activity.</p>
-      </Tabs.Panel>
-      <Tabs.Panel className="pt-4" id="analytics">
-        <p>Track your metrics and analyze performance data.</p>
-      </Tabs.Panel>
-      <Tabs.Panel className="pt-4" id="reports">
-        <p>Generate and download detailed reports.</p>
-      </Tabs.Panel>
-    </Tabs>
       <main className="container flex-1 overflow-auto py-4">
         <Tabs
+          className="w-full"
           selectedKey={tab}
           onSelectionChange={key => setTab(String(key))}
-          aria-label="媒体类型"
         >
-          <TabList>
-            <Tab id="images">图片</Tab>
-            <Tab id="videos">视频</Tab>
-          </TabList>
-          <TabPanel id="images">
+          <Tabs.ListContainer>
+            <Tabs.List aria-label="媒体类型">
+              <Tabs.Tab id="images">
+                图片
+                <Tabs.Indicator />
+              </Tabs.Tab>
+              <Tabs.Tab id="videos">
+                视频
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs.ListContainer>
+          <Tabs.Panel
+            className="pt-4"
+            id="images"
+          >
             <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
               {ImageCards}
             </div>
-          </TabPanel>
-          <TabPanel id="videos">
+          </Tabs.Panel>
+          <Tabs.Panel
+            className="pt-4"
+            id="videos"
+          >
             <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
               {VideoCards}
             </div>
-          </TabPanel>
+          </Tabs.Panel>
         </Tabs>
       </main>
       <footer className="border-t border-slate-200">

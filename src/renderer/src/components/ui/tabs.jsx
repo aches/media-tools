@@ -1,21 +1,23 @@
 import React from 'react'
-import { cn } from '../../lib/utils'
+import { Tabs as HTabs } from '@heroui/react'
 
 export function Tabs({ tabs, active, onChange, className }) {
   return (
-    <div className={cn('flex items-center gap-2 border-b border-slate-200 px-4', className)}>
-      {tabs.map(t => (
-        <button
-          key={t.value}
-          onClick={() => onChange(t.value)}
-          className={cn(
-            'h-9 px-4 rounded-md',
-            active === t.value ? 'bg-blue-600 text-white' : 'hover:bg-slate-100'
-          )}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
+    <HTabs
+      className={className}
+      selectedKey={active}
+      onSelectionChange={key => onChange?.(String(key))}
+    >
+      <HTabs.ListContainer>
+        <HTabs.List aria-label="选项卡">
+          {tabs?.map(t => (
+            <HTabs.Tab key={t.value} id={t.value}>
+              {t.label}
+              <HTabs.Indicator />
+            </HTabs.Tab>
+          ))}
+        </HTabs.List>
+      </HTabs.ListContainer>
+    </HTabs>
   )
 }
