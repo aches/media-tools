@@ -1,0 +1,64 @@
+{
+  "name": "mediaplayer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron 媒体浏览器，支持自动更新与目录检索图片/视频分 tab 展示",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "electron-builder",
+    "postinstall": "electron-builder install-app-deps",
+    "renderer:build": "vite build"
+  },
+  "dependencies": {
+    "@heroui/react": "^3.0.0-beta.6",
+    "@heroui/styles": "^3.0.0-beta.6",
+    "electron-updater": "^6.3.7",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@vitejs/plugin-react": "^4.0.4",
+    "concurrently": "^8.2.2",
+    "electron": "^31.6.0",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^4.0.0",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.example.mediaplayer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.photography"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://your-update-server.example.com/"
+      }
+    ]
+  }
+}
