@@ -15,10 +15,7 @@
     "@heroui/react": "^3.0.0-beta.6",
     "@heroui/styles": "^3.0.0-beta.6",
     "electron-updater": "^6.3.7",
-<<<<<<< HEAD
     "ffmpeg-static": "^5.2.0",
-=======
->>>>>>> 3c2efc4150028cbd5b24dcb12e024524474e68b9
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
