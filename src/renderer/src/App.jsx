@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Tabs } from '@heroui/react'
+import VirtualGrid from './components/VirtualGrid.jsx'
 
 export default function App() {
   const [libraries, setLibraries] = useState([])
@@ -153,11 +154,18 @@ export default function App() {
               </Tabs.ListContainer>
               {imageDirs.map(id => (
                 <Tabs.Panel key={id} id={id} className="h-full">
-                  <div className="h-full overflow-y-auto">
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-                      {ImageCards}
-                    </div>
-                  </div>
+                  <VirtualGrid
+                    items={images.filter(p => id === 'all' || p.split('/').slice(-2, -1)[0] === id)}
+                    renderItem={(p) => (
+                      <div className="border border-slate-200 rounded-md p-2 bg-white flex flex-col gap-2">
+                        <img src={`safe-file://${p}`} alt="" loading="lazy" className="w-full h-32 object-cover rounded" />
+                        <div className="text-xs text-slate-600 truncate">{p.split('/').pop()}</div>
+                      </div>
+                    )}
+                    minItemWidth={180}
+                    itemHeight={180}
+                    gap={12}
+                  />
                 </Tabs.Panel>
               ))}
             </Tabs>
@@ -187,11 +195,25 @@ export default function App() {
               </Tabs.ListContainer>
               {videoDirs.map(id => (
                 <Tabs.Panel key={id} id={id} className="h-full">
-                  <div className="h-full overflow-y-auto">
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-                      {VideoCards}
-                    </div>
-                  </div>
+                  <VirtualGrid
+                    items={videos.filter(p => id === 'all' || p.split('/').slice(-2, -1)[0] === id)}
+                    renderItem={(p) => {
+                      const thumb = videoThumbnails[p]
+                      return (
+                        <div className="border border-slate-200 rounded-md p-2 bg-white flex flex-col gap-2">
+                          {thumb ? (
+                            <img src={`safe-file://${thumb}`} alt="" loading="lazy" className="w-full h-32 object-cover rounded" />
+                          ) : (
+                            <div className="w-full h-32 rounded bg-slate-100 flex items-center justify-center text-xs text-slate-500">无封面</div>
+                          )}
+                          <div className="text-xs text-slate-600 truncate">{p.split('/').pop()}</div>
+                        </div>
+                      )
+                    }}
+                    minItemWidth={180}
+                    itemHeight={180}
+                    gap={12}
+                  />
                 </Tabs.Panel>
               ))}
             </Tabs>
