@@ -1,10 +1,14 @@
 const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const crypto = require('crypto')
+const { spawn } = require('child_process')
+const ffmpegPath = require('ffmpeg-static')
 const { autoUpdater } = require('electron-updater')
 const { loadCache, saveCache } = require('./store')
 
 let win
+const THUMB_DIR = path.join(app.getPath('userData'), 'video-thumbs')
 
 // 注册自定义安全协议，允许在 http 开发环境安全加载本地文件
 protocol.registerSchemesAsPrivileged?.([
@@ -78,13 +82,73 @@ async function scanLibraries(libraries) {
   return agg
 }
 
+function getThumbPath(videoPath) {
+  const hash = crypto.createHash('sha1').update(videoPath).digest('hex')
+  return path.join(THUMB_DIR, `${hash}.jpg`)
+}
+
+async function ensureVideoThumbnail(videoPath) {
+  const thumbPath = getThumbPath(videoPath)
+  try {
+    const [vStat, tStat] = await Promise.all([
+      fs.promises.stat(videoPath),
+      fs.promises.stat(thumbPath)
+    ])
+    if (tStat.mtimeMs >= vStat.mtimeMs) return thumbPath
+  } catch {}
+  await fs.promises.mkdir(THUMB_DIR, { recursive: true })
+  await new Promise((resolve, reject) => {
+    const proc = spawn(
+      ffmpegPath,
+      [
+        '-y',
+        '-ss',
+        '00:00:01',
+        '-i',
+        videoPath,
+        '-frames:v',
+        '1',
+        '-vf',
+        "scale='min(512,iw)':-2",
+        thumbPath
+      ],
+      { windowsHide: true }
+    )
+    proc.on('error', reject)
+    proc.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exit ${code}`))))
+  })
+  return thumbPath
+}
+
+async function buildVideoThumbnailMap(videos, prevMap = {}) {
+  const map = {}
+  for (const v of videos) {
+    try {
+      map[v] = await ensureVideoThumbnail(v)
+    } catch {}
+  }
+  const current = new Set(videos)
+  const removals = Object.keys(prevMap).filter((k) => !current.has(k))
+  await Promise.all(
+    removals.map(async (k) => {
+      const p = prevMap[k]
+      if (!p) return
+      try {
+        await fs.promises.unlink(p)
+      } catch {}
+    })
+  )
+  return map
+}
+
 ipcMain.handle('select-directories', async () => {
   const res = await dialog.showOpenDialog({ properties: ['openDirectory', 'multiSelections'] })
   if (res.canceled || !res.filePaths?.length) return loadCache()
   const cache = loadCache()
   const libraries = Array.from(new Set([...(cache.libraries || []), ...res.filePaths]))
   const scanned = await scanLibraries(libraries)
-  const saved = saveCache({ libraries, images: scanned.images, videos: scanned.videos })
+  const videoThumbnails = await buildVideoThumbnailMap(scanned.videos, cache.videoThumbnails)
+  const saved = saveCache({ libraries, images: scanned.images, videos: scanned.videos, videoThumbnails })
   return saved
 })
 
@@ -100,12 +164,13 @@ ipcMain.handle('rescan-libraries', async () => {
   const addVideos = scanned.videos.filter(p => !cache.videos.includes(p))
   const delImages = cache.images.filter(p => !scanned.images.includes(p))
   const delVideos = cache.videos.filter(p => !scanned.videos.includes(p))
-  const saved = saveCache({ libraries: cache.libraries, images: scanned.images, videos: scanned.videos })
+  const videoThumbnails = await buildVideoThumbnailMap(scanned.videos, cache.videoThumbnails)
+  const saved = saveCache({ libraries: cache.libraries, images: scanned.images, videos: scanned.videos, videoThumbnails })
   if (win) {
     win.webContents.send('library-sync', {
       added: { images: addImages, videos: addVideos },
       removed: { images: delImages, videos: delVideos },
-      current: { images: saved.images, videos: saved.videos, libraries: saved.libraries }
+      current: { images: saved.images, videos: saved.videos, libraries: saved.libraries, videoThumbnails: saved.videoThumbnails }
     })
   }
   return saved
@@ -154,14 +219,16 @@ app.whenReady().then(() => {
   // 启动时同步一次媒体库
   const cache = loadCache()
   scanLibraries(cache.libraries || []).then(scanned => {
-    const saved = saveCache({ libraries: cache.libraries || [], images: scanned.images, videos: scanned.videos })
-    if (win) {
-      win.webContents.send('library-sync', {
-        added: { images: [], videos: [] },
-        removed: { images: [], videos: [] },
-        current: { images: saved.images, videos: saved.videos, libraries: saved.libraries }
-      })
-    }
+    buildVideoThumbnailMap(scanned.videos, cache.videoThumbnails).then(videoThumbnails => {
+      const saved = saveCache({ libraries: cache.libraries || [], images: scanned.images, videos: scanned.videos, videoThumbnails })
+      if (win) {
+        win.webContents.send('library-sync', {
+          added: { images: [], videos: [] },
+          removed: { images: [], videos: [] },
+          current: { images: saved.images, videos: saved.videos, libraries: saved.libraries, videoThumbnails: saved.videoThumbnails }
+        })
+      }
+    }).catch(() => {})
   }).catch(() => {})
   setupAutoUpdate()
   autoUpdater.checkForUpdatesAndNotify()

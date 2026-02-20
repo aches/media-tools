@@ -5,6 +5,7 @@ export default function App() {
   const [libraries, setLibraries] = useState([])
   const [images, setImages] = useState([])
   const [videos, setVideos] = useState([])
+  const [videoThumbnails, setVideoThumbnails] = useState({})
   const [tab, setTab] = useState('images')
   const [updateStatus, setUpdateStatus] = useState('')
 
@@ -13,6 +14,7 @@ export default function App() {
       setLibraries(cache.libraries || [])
       setImages(cache.images || [])
       setVideos(cache.videos || [])
+      setVideoThumbnails(cache.videoThumbnails || {})
     })
     const offUpdate = window.api.onUpdateStatus(s => {
       if (s.status === 'checking') setUpdateStatus('正在检查更新')
@@ -26,6 +28,7 @@ export default function App() {
       setLibraries(s.current.libraries || [])
       setImages(s.current.images || [])
       setVideos(s.current.videos || [])
+      setVideoThumbnails(s.current.videoThumbnails || {})
     })
     return () => {
       offUpdate?.()
@@ -38,6 +41,7 @@ export default function App() {
     setLibraries(cache.libraries || [])
     setImages(cache.images || [])
     setVideos(cache.videos || [])
+    setVideoThumbnails(cache.videoThumbnails || {})
   }
 
   const rescan = async () => {
@@ -54,13 +58,20 @@ export default function App() {
   ), [images])
 
   const VideoCards = useMemo(() => (
-    videos.length ? videos.map(p => (
+    videos.length ? videos.map(p => {
+      const thumb = videoThumbnails[p]
+      return (
       <div key={p} className="border border-slate-200 rounded-md p-2 bg-white flex flex-col gap-2">
-        <video src={`safe-file://${p}`} controls className="w-full h-32 rounded" />
+        {thumb ? (
+          <img src={`safe-file://${thumb}`} alt="" className="w-full h-32 object-cover rounded" />
+        ) : (
+          <div className="w-full h-32 rounded bg-slate-100 flex items-center justify-center text-xs text-slate-500">无封面</div>
+        )}
         <div className="text-xs text-slate-600">{p.split('/').pop()}</div>
       </div>
-    )) : <div className="p-6 text-slate-500">暂无视频</div>
-  ), [videos])
+      )
+    }) : <div className="p-6 text-slate-500">暂无视频</div>
+  ), [videos, videoThumbnails])
 
   return (
     <div className="flex flex-col h-screen">

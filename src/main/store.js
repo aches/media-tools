@@ -9,7 +9,7 @@ function loadCache() {
     const raw = fs.readFileSync(STORE_FILE, 'utf-8')
     return JSON.parse(raw)
   } catch {
-    return { libraries: [], images: [], videos: [], updatedAt: 0 }
+    return { libraries: [], images: [], videos: [], videoThumbnails: {}, updatedAt: 0 }
   }
 }
 
@@ -18,6 +18,7 @@ function saveCache(data) {
     libraries: data.libraries || [],
     images: data.images || [],
     videos: data.videos || [],
+    videoThumbnails: data.videoThumbnails || {},
     updatedAt: Date.now()
   }
   fs.mkdirSync(path.dirname(STORE_FILE), { recursive: true })
