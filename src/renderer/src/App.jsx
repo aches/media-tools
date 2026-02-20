@@ -109,9 +109,9 @@ export default function App() {
           </div>
         </div>
       </div>
-      <main className="container flex-1 py-4">
+      <main className="container flex-1 px-0 overflow-hidden">
         <Tabs
-          className="w-full"
+          className="w-full h-full"
           selectedKey={tab}
           onSelectionChange={key => setTab(String(key))}
           variant="secondary"
@@ -129,17 +129,17 @@ export default function App() {
             </Tabs.List>
           </Tabs.ListContainer>
           <Tabs.Panel
-            className="pt-4"
+            className="h-full"
             id="images"
           >
             <Tabs
-              className="w-full"
+              className="w-full h-full"
               orientation="vertical"
               variant="secondary"
               selectedKey={imagesFolder}
               onSelectionChange={key => setImagesFolder(String(key))}
             >
-              <Tabs.ListContainer className="w-56 max-h-[50vh] overflow-y-auto overflow-x-hidden">
+              <Tabs.ListContainer className="w-56 h-full overflow-y-auto overflow-x-hidden">
                 <Tabs.List aria-label="图片文件夹" className="text-left">
                   {imageDirs.map(id => (
                     <Tabs.Tab key={id} id={id} className="w-56 justify-start">
@@ -152,8 +152,8 @@ export default function App() {
                 </Tabs.List>
               </Tabs.ListContainer>
               {imageDirs.map(id => (
-                <Tabs.Panel key={id} id={id} className="pt-2">
-                  <div className="h-[60vh] overflow-y-auto">
+                <Tabs.Panel key={id} id={id} className="h-full">
+                  <div className="h-full overflow-y-auto">
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
                       {ImageCards}
                     </div>
@@ -163,17 +163,17 @@ export default function App() {
             </Tabs>
           </Tabs.Panel>
           <Tabs.Panel
-            className="pt-4"
+            className="h-full"
             id="videos"
           >
             <Tabs
-              className="w-full"
+              className="w-full h-full"
               orientation="vertical"
               variant="secondary"
               selectedKey={videosFolder}
               onSelectionChange={key => setVideosFolder(String(key))}
             >
-              <Tabs.ListContainer className="w-56 max-h-[50vh] overflow-y-auto overflow-x-hidden">
+              <Tabs.ListContainer className="w-56 h-full overflow-y-auto overflow-x-hidden">
                 <Tabs.List aria-label="视频文件夹" className="text-left">
                   {videoDirs.map(id => (
                     <Tabs.Tab key={id} id={id} className="w-56 justify-start">
@@ -186,8 +186,8 @@ export default function App() {
                 </Tabs.List>
               </Tabs.ListContainer>
               {videoDirs.map(id => (
-                <Tabs.Panel key={id} id={id} className="pt-2">
-                  <div className="h-[60vh] overflow-y-auto">
+                <Tabs.Panel key={id} id={id} className="h-full">
+                  <div className="h-full overflow-y-auto">
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
                       {VideoCards}
                     </div>
