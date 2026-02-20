@@ -1,11 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
+<<<<<<< HEAD
 import { Button, Tabs } from '@heroui/react'
+=======
+import { Button, Tabs, Tab, TabList, TabPanel } from '@heroui/react'
+>>>>>>> 3c2efc4150028cbd5b24dcb12e024524474e68b9
 
 export default function App() {
   const [libraries, setLibraries] = useState([])
   const [images, setImages] = useState([])
   const [videos, setVideos] = useState([])
+<<<<<<< HEAD
   const [videoThumbnails, setVideoThumbnails] = useState({})
+=======
+>>>>>>> 3c2efc4150028cbd5b24dcb12e024524474e68b9
   const [tab, setTab] = useState('images')
   const [updateStatus, setUpdateStatus] = useState('')
 
@@ -14,7 +21,10 @@ export default function App() {
       setLibraries(cache.libraries || [])
       setImages(cache.images || [])
       setVideos(cache.videos || [])
+<<<<<<< HEAD
       setVideoThumbnails(cache.videoThumbnails || {})
+=======
+>>>>>>> 3c2efc4150028cbd5b24dcb12e024524474e68b9
     })
     const offUpdate = window.api.onUpdateStatus(s => {
       if (s.status === 'checking') setUpdateStatus('正在检查更新')
@@ -28,7 +38,10 @@ export default function App() {
       setLibraries(s.current.libraries || [])
       setImages(s.current.images || [])
       setVideos(s.current.videos || [])
+<<<<<<< HEAD
       setVideoThumbnails(s.current.videoThumbnails || {})
+=======
+>>>>>>> 3c2efc4150028cbd5b24dcb12e024524474e68b9
     })
     return () => {
       offUpdate?.()
@@ -41,7 +54,10 @@ export default function App() {
     setLibraries(cache.libraries || [])
     setImages(cache.images || [])
     setVideos(cache.videos || [])
+<<<<<<< HEAD
     setVideoThumbnails(cache.videoThumbnails || {})
+=======
+>>>>>>> 3c2efc4150028cbd5b24dcb12e024524474e68b9
   }
 
   const rescan = async () => {
@@ -58,6 +74,7 @@ export default function App() {
   ), [images])
 
   const VideoCards = useMemo(() => (
+<<<<<<< HEAD
     videos.length ? videos.map(p => {
       const thumb = videoThumbnails[p]
       return (
@@ -72,6 +89,15 @@ export default function App() {
       )
     }) : <div className="p-6 text-slate-500">暂无视频</div>
   ), [videos, videoThumbnails])
+=======
+    videos.length ? videos.map(p => (
+      <div key={p} className="border border-slate-200 rounded-md p-2 bg-white flex flex-col gap-2">
+        <video src={`safe-file://${p}`} controls className="w-full h-32 rounded" />
+        <div className="text-xs text-slate-600">{p.split('/').pop()}</div>
+      </div>
+    )) : <div className="p-6 text-slate-500">暂无视频</div>
+  ), [videos])
+>>>>>>> 3c2efc4150028cbd5b24dcb12e024524474e68b9
 
   return (
     <div className="flex flex-col h-screen">
@@ -93,6 +119,7 @@ export default function App() {
           </div>
         </div>
       </div>
+<<<<<<< HEAD
       <main className="container flex-1 overflow-auto py-4">
         <Tabs
           className="w-full"
@@ -127,6 +154,55 @@ export default function App() {
               {VideoCards}
             </div>
           </Tabs.Panel>
+=======
+ <Tabs className="w-full max-w-md">
+      <Tabs.ListContainer>
+        <Tabs.List aria-label="Options">
+          <Tabs.Tab id="overview">
+            Overview
+            <Tabs.Indicator />
+          </Tabs.Tab>
+          <Tabs.Tab id="analytics">
+            Analytics
+            <Tabs.Indicator />
+          </Tabs.Tab>
+          <Tabs.Tab id="reports">
+            Reports
+            <Tabs.Indicator />
+          </Tabs.Tab>
+        </Tabs.List>
+      </Tabs.ListContainer>
+      <Tabs.Panel className="pt-4" id="overview">
+        <p>View your project overview and recent activity.</p>
+      </Tabs.Panel>
+      <Tabs.Panel className="pt-4" id="analytics">
+        <p>Track your metrics and analyze performance data.</p>
+      </Tabs.Panel>
+      <Tabs.Panel className="pt-4" id="reports">
+        <p>Generate and download detailed reports.</p>
+      </Tabs.Panel>
+    </Tabs>
+      <main className="container flex-1 overflow-auto py-4">
+        <Tabs
+          selectedKey={tab}
+          onSelectionChange={key => setTab(String(key))}
+          aria-label="媒体类型"
+        >
+          <TabList>
+            <Tab id="images">图片</Tab>
+            <Tab id="videos">视频</Tab>
+          </TabList>
+          <TabPanel id="images">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+              {ImageCards}
+            </div>
+          </TabPanel>
+          <TabPanel id="videos">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+              {VideoCards}
+            </div>
+          </TabPanel>
+>>>>>>> 3c2efc4150028cbd5b24dcb12e024524474e68b9
         </Tabs>
       </main>
       <footer className="border-t border-slate-200">
