@@ -7,6 +7,8 @@ export default function App() {
   const [videos, setVideos] = useState([])
   const [videoThumbnails, setVideoThumbnails] = useState({})
   const [tab, setTab] = useState('images')
+  const [imagesFolder, setImagesFolder] = useState('all')
+  const [videosFolder, setVideosFolder] = useState('all')
   const [updateStatus, setUpdateStatus] = useState('')
 
   useEffect(() => {
@@ -49,16 +51,20 @@ export default function App() {
   }
 
   const ImageCards = useMemo(() => (
-    images.length ? images.map(p => (
+    images.length ? images
+      .filter(p => imagesFolder === 'all' || p.split('/').slice(-2, -1)[0] === imagesFolder)
+      .map(p => (
       <div key={p} className="border border-slate-200 rounded-md p-2 bg-white flex flex-col gap-2">
         <img src={`safe-file://${p}`} alt="" className="w-full h-32 object-cover rounded" />
-        <div className="text-xs text-slate-600">{p.split('/').pop()}</div>
+        <div className="text-xs text-slate-600 truncate">{p.split('/').pop()}</div>
       </div>
     )) : <div className="p-6 text-slate-500">暂无图片</div>
-  ), [images])
+  ), [images, imagesFolder])
 
   const VideoCards = useMemo(() => (
-    videos.length ? videos.map(p => {
+    videos.length ? videos
+      .filter(p => videosFolder === 'all' || p.split('/').slice(-2, -1)[0] === videosFolder)
+      .map(p => {
       const thumb = videoThumbnails[p]
       return (
       <div key={p} className="border border-slate-200 rounded-md p-2 bg-white flex flex-col gap-2">
@@ -67,11 +73,21 @@ export default function App() {
         ) : (
           <div className="w-full h-32 rounded bg-slate-100 flex items-center justify-center text-xs text-slate-500">无封面</div>
         )}
-        <div className="text-xs text-slate-600">{p.split('/').pop()}</div>
+        <div className="text-xs text-slate-600 truncate">{p.split('/').pop()}</div>
       </div>
       )
     }) : <div className="p-6 text-slate-500">暂无视频</div>
-  ), [videos, videoThumbnails])
+  ), [videos, videoThumbnails, videosFolder])
+
+  const imageDirs = useMemo(() => {
+    const set = new Set(images.map(p => p.split('/').slice(-2, -1)[0]).filter(Boolean))
+    return ['all', ...Array.from(set).sort()]
+  }, [images])
+
+  const videoDirs = useMemo(() => {
+    const set = new Set(videos.map(p => p.split('/').slice(-2, -1)[0]).filter(Boolean))
+    return ['all', ...Array.from(set).sort()]
+  }, [videos])
 
   return (
     <div className="flex flex-col h-screen">
@@ -98,6 +114,7 @@ export default function App() {
           className="w-full"
           selectedKey={tab}
           onSelectionChange={key => setTab(String(key))}
+          variant="secondary"
         >
           <Tabs.ListContainer>
             <Tabs.List aria-label="媒体类型">
@@ -115,17 +132,61 @@ export default function App() {
             className="pt-4"
             id="images"
           >
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-              {ImageCards}
-            </div>
+            <Tabs
+              className="w-full"
+              isVertical
+              variant="secondary"
+              selectedKey={imagesFolder}
+              onSelectionChange={key => setImagesFolder(String(key))}
+            >
+              <Tabs.ListContainer>
+                <Tabs.List aria-label="图片文件夹">
+                  {imageDirs.map(id => (
+                    <Tabs.Tab key={id} id={id}>
+                      <span className="truncate">{id === 'all' ? '全部' : id}</span>
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+              </Tabs.ListContainer>
+              {imageDirs.map(id => (
+                <Tabs.Panel key={id} id={id} className="pt-2">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                    {ImageCards}
+                  </div>
+                </Tabs.Panel>
+              ))}
+            </Tabs>
           </Tabs.Panel>
           <Tabs.Panel
             className="pt-4"
             id="videos"
           >
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-              {VideoCards}
-            </div>
+            <Tabs
+              className="w-full"
+              isVertical
+              variant="secondary"
+              selectedKey={videosFolder}
+              onSelectionChange={key => setVideosFolder(String(key))}
+            >
+              <Tabs.ListContainer>
+                <Tabs.List aria-label="视频文件夹">
+                  {videoDirs.map(id => (
+                    <Tabs.Tab key={id} id={id}>
+                      <span className="truncate">{id === 'all' ? '全部' : id}</span>
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+              </Tabs.ListContainer>
+              {videoDirs.map(id => (
+                <Tabs.Panel key={id} id={id} className="pt-2">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                    {VideoCards}
+                  </div>
+                </Tabs.Panel>
+              ))}
+            </Tabs>
           </Tabs.Panel>
         </Tabs>
       </main>
