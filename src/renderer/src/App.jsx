@@ -109,7 +109,7 @@ export default function App() {
           </div>
         </div>
       </div>
-      <main className="container flex-1 overflow-auto py-4">
+      <main className="container flex-1 py-4">
         <Tabs
           className="w-full"
           selectedKey={tab}
@@ -134,16 +134,18 @@ export default function App() {
           >
             <Tabs
               className="w-full"
-              isVertical
+              orientation="vertical"
               variant="secondary"
               selectedKey={imagesFolder}
               onSelectionChange={key => setImagesFolder(String(key))}
             >
-              <Tabs.ListContainer>
-                <Tabs.List aria-label="图片文件夹">
+              <Tabs.ListContainer className="w-56 max-h-[50vh] overflow-y-auto overflow-x-hidden">
+                <Tabs.List aria-label="图片文件夹" className="text-left">
                   {imageDirs.map(id => (
-                    <Tabs.Tab key={id} id={id}>
-                      <span className="truncate">{id === 'all' ? '全部' : id}</span>
+                    <Tabs.Tab key={id} id={id} className="w-56 justify-start">
+                      <span className="block w-full text-left whitespace-nowrap overflow-hidden text-ellipsis">
+                        {id === 'all' ? '全部' : id}
+                      </span>
                       <Tabs.Indicator />
                     </Tabs.Tab>
                   ))}
@@ -151,8 +153,10 @@ export default function App() {
               </Tabs.ListContainer>
               {imageDirs.map(id => (
                 <Tabs.Panel key={id} id={id} className="pt-2">
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-                    {ImageCards}
+                  <div className="h-[60vh] overflow-y-auto">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                      {ImageCards}
+                    </div>
                   </div>
                 </Tabs.Panel>
               ))}
@@ -164,16 +168,18 @@ export default function App() {
           >
             <Tabs
               className="w-full"
-              isVertical
+              orientation="vertical"
               variant="secondary"
               selectedKey={videosFolder}
               onSelectionChange={key => setVideosFolder(String(key))}
             >
-              <Tabs.ListContainer>
-                <Tabs.List aria-label="视频文件夹">
+              <Tabs.ListContainer className="w-56 max-h-[50vh] overflow-y-auto overflow-x-hidden">
+                <Tabs.List aria-label="视频文件夹" className="text-left">
                   {videoDirs.map(id => (
-                    <Tabs.Tab key={id} id={id}>
-                      <span className="truncate">{id === 'all' ? '全部' : id}</span>
+                    <Tabs.Tab key={id} id={id} className="w-56 justify-start">
+                      <span className="block w-full text-left whitespace-nowrap overflow-hidden text-ellipsis">
+                        {id === 'all' ? '全部' : id}
+                      </span>
                       <Tabs.Indicator />
                     </Tabs.Tab>
                   ))}
@@ -181,8 +187,10 @@ export default function App() {
               </Tabs.ListContainer>
               {videoDirs.map(id => (
                 <Tabs.Panel key={id} id={id} className="pt-2">
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-                    {VideoCards}
+                  <div className="h-[60vh] overflow-y-auto">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                      {VideoCards}
+                    </div>
                   </div>
                 </Tabs.Panel>
               ))}
