@@ -67,7 +67,7 @@ export default function VirtualGrid({ items, renderItem, minItemWidth = 180, ite
       >
         {visible.map((item, i) => (
           <div key={calc.startIndex + i} style={{ minHeight: itemHeight }}>
-            {renderItem(item)}
+            {renderItem(item, { rootRef: ref })}
           </div>
         ))}
       </div>

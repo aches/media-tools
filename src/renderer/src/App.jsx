@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Tabs, TagGroup, Tag, ListBox, Popover } from '@heroui/react'
 import VirtualGrid from './components/VirtualGrid.jsx'
 
@@ -72,6 +72,39 @@ export default function App() {
     if (wrapper._scrollRaf) cancelAnimationFrame(wrapper._scrollRaf)
     wrapper._scrollRaf = null
     wrapper.scrollLeft = 0
+  }
+
+  const LazyMedia = ({ src, alt, rootRef, wrapperClassName, imgClassName, placeholderClassName }) => {
+    const wrapperRef = useRef(null)
+    const [visible, setVisible] = useState(false)
+
+    useEffect(() => {
+      if (visible) return
+      const root = rootRef?.current || null
+      const el = wrapperRef.current
+      if (!el) return
+      const io = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setVisible(true)
+            io.disconnect()
+            break
+          }
+        }
+      }, { root, rootMargin: '200px', threshold: 0.01 })
+      io.observe(el)
+      return () => io.disconnect()
+    }, [rootRef, visible])
+
+    return (
+      <div ref={wrapperRef} className={wrapperClassName}>
+        {visible ? (
+          <img src={src} alt={alt} loading="lazy" className={imgClassName} />
+        ) : (
+          <div className={placeholderClassName} />
+        )}
+      </div>
+    )
   }
 
   const ImageCards = useMemo(() => (
@@ -189,9 +222,16 @@ export default function App() {
               {tab === 'images' ? (
                 <VirtualGrid
                   items={images.filter(p => imagesFolder === 'all' || p.split('/').slice(-2, -1)[0] === imagesFolder)}
-                  renderItem={(p) => (
+                  renderItem={(p, { rootRef }) => (
                     <div className="border border-separator rounded-md p-2 bg-surface flex flex-col gap-2">
-                      <img src={`safe-file://${p}`} alt="" loading="lazy" className="w-full h-32 object-cover rounded" />
+                      <LazyMedia
+                        src={`safe-file://${p}`}
+                        alt=""
+                        rootRef={rootRef}
+                        wrapperClassName="w-full h-32"
+                        imgClassName="w-full h-full object-cover rounded"
+                        placeholderClassName="w-full h-full rounded bg-muted"
+                      />
                       <div className="text-xs text-muted truncate">{p.split('/').pop()}</div>
                     </div>
                   )}
@@ -202,12 +242,19 @@ export default function App() {
               ) : (
                 <VirtualGrid
                   items={videos.filter(p => videosFolder === 'all' || p.split('/').slice(-2, -1)[0] === videosFolder)}
-                  renderItem={(p) => {
+                  renderItem={(p, { rootRef }) => {
                     const thumb = videoThumbnails[p]
                     return (
                       <div className="border border-separator rounded-md p-2 bg-surface flex flex-col gap-2">
                         {thumb ? (
-                          <img src={`safe-file://${thumb}`} alt="" loading="lazy" className="w-full h-32 object-cover rounded" />
+                          <LazyMedia
+                            src={`safe-file://${thumb}`}
+                            alt=""
+                            rootRef={rootRef}
+                            wrapperClassName="w-full h-32"
+                            imgClassName="w-full h-full object-cover rounded"
+                            placeholderClassName="w-full h-full rounded bg-muted"
+                          />
                         ) : (
                           <div className="w-full h-32 rounded bg-muted flex items-center justify-center text-xs text-muted">无封面</div>
                         )}
