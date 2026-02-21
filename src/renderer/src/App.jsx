@@ -51,6 +51,29 @@ export default function App() {
     await window.api.rescanLibraries()
   }
 
+  const startTitleScroll = (event) => {
+    const wrapper = event.currentTarget
+    const text = wrapper.querySelector('[data-scroll-text]')
+    if (!text || text.scrollWidth <= wrapper.clientWidth) return
+    wrapper._scrollDir = 1
+    const step = () => {
+      const max = wrapper.scrollWidth - wrapper.clientWidth
+      if (max <= 0) return
+      const next = wrapper.scrollLeft + wrapper._scrollDir
+      if (next >= max || next <= 0) wrapper._scrollDir *= -1
+      wrapper.scrollLeft = Math.min(max, Math.max(0, next))
+      wrapper._scrollRaf = requestAnimationFrame(step)
+    }
+    wrapper._scrollRaf = requestAnimationFrame(step)
+  }
+
+  const stopTitleScroll = (event) => {
+    const wrapper = event.currentTarget
+    if (wrapper._scrollRaf) cancelAnimationFrame(wrapper._scrollRaf)
+    wrapper._scrollRaf = null
+    wrapper.scrollLeft = 0
+  }
+
   const ImageCards = useMemo(() => (
     images.length ? images
       .filter(p => imagesFolder === 'all' || p.split('/').slice(-2, -1)[0] === imagesFolder)
@@ -96,7 +119,7 @@ export default function App() {
       
       <main className="container flex-1 px-0 overflow-hidden">
         <div className="grid grid-cols-[224px_1fr] grid-rows-[56px_1fr] h-full">
-          <aside className="row-span-2 border-r border-separator bg-surface overflow-hidden">
+          <aside className="row-span-2 overflow-hidden">
             <div className="h-full hover-scroll overflow-x-hidden">
               <ListBox
                 aria-label="文件夹"
@@ -107,14 +130,27 @@ export default function App() {
                   if (tab === 'images') setImagesFolder(String(id))
                   else setVideosFolder(String(id))
                 }}
-                className="w-[224px]"
+                className="w-[224px] bg-transparent border-none p-2"
               >
-                <ListBox.Item id="all" textValue="全部">
-                  <span className="block w-full whitespace-nowrap overflow-hidden text-ellipsis">全部</span>
+                <ListBox.Item
+                  id="all"
+                  textValue="全部"
+                  className="rounded-lg px-3 py-2 data-[selected=true]:bg-primary/10 data-[selected=true]:text-foreground data-[selected]:bg-primary/10 data-[selected]:text-foreground"
+                >
+                  <div className="scroll-on-hover w-full" onMouseEnter={startTitleScroll} onMouseLeave={stopTitleScroll}>
+                    <span data-scroll-text className="scroll-on-hover__content">全部</span>
+                  </div>
                 </ListBox.Item>
                 {(tab === 'images' ? imageDirs : videoDirs).filter(id => id !== 'all').map(id => (
-                  <ListBox.Item key={id} id={id} textValue={id}>
-                    <span className="block w-full whitespace-nowrap overflow-hidden text-ellipsis">{id}</span>
+                  <ListBox.Item
+                    key={id}
+                    id={id}
+                    textValue={id}
+                    className="rounded-lg px-3 py-2 data-[selected=true]:bg-primary/10 data-[selected=true]:text-foreground data-[selected]:bg-primary/10 data-[selected]:text-foreground"
+                  >
+                    <div className="scroll-on-hover w-full" onMouseEnter={startTitleScroll} onMouseLeave={stopTitleScroll}>
+                      <span data-scroll-text className="scroll-on-hover__content">{id}</span>
+                    </div>
                   </ListBox.Item>
                 ))}
               </ListBox>

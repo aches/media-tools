@@ -34,3 +34,18 @@ body {
   width: 8px;
   height: 8px;
 }
+
+.scroll-on-hover {
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.scroll-on-hover::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+.scroll-on-hover__content {
+  display: inline-block;
+  padding-right: 24px;
+}
