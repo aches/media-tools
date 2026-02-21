@@ -113,9 +113,13 @@ export default function App() {
 
     useEffect(() => {
       if (visible) return
-      const root = rootRef?.current || null
       const el = wrapperRef.current
       if (!el) return
+      const root = rootRef?.current || null
+      if (!root) {
+        setVisible(true)
+        return
+      }
       const io = new IntersectionObserver(entries => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
