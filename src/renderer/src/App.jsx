@@ -185,7 +185,7 @@ export default function App() {
             </div>
           </nav>
           <section className="col-start-2 overflow-hidden">
-            <div className="h-full hover-scroll overflow-x-hidden p-3">
+            <div className="h-full overflow-hidden p-3">
               {tab === 'images' ? (
                 <VirtualGrid
                   items={images.filter(p => imagesFolder === 'all' || p.split('/').slice(-2, -1)[0] === imagesFolder)}

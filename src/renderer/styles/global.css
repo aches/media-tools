@@ -49,3 +49,19 @@ body {
   display: inline-block;
   padding-right: 24px;
 }
+
+.ps__rail-y,
+.ps__rail-x {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.ps:hover > .ps__rail-y,
+.ps:hover > .ps__rail-x {
+  opacity: 1;
+}
+.ps__rail-y {
+  width: 8px;
+}
+.ps__rail-x {
+  height: 8px;
+}

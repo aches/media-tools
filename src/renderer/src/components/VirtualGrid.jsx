@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import PerfectScrollbar from 'perfect-scrollbar'
+import 'perfect-scrollbar/css/perfect-scrollbar.css'
 
 export default function VirtualGrid({ items, renderItem, minItemWidth = 180, itemHeight = 180, gap = 12, className = '' }) {
   const ref = useRef(null)
+  const psRef = useRef(null)
   const [width, setWidth] = useState(0)
   const [height, setHeight] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
@@ -24,6 +27,16 @@ export default function VirtualGrid({ items, renderItem, minItemWidth = 180, ite
     }
   }, [])
 
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    psRef.current = new PerfectScrollbar(el, { suppressScrollX: true })
+    return () => {
+      psRef.current?.destroy()
+      psRef.current = null
+    }
+  }, [])
+
   const calc = useMemo(() => {
     const columns = Math.max(1, Math.floor((width - gap) / (minItemWidth + gap)))
     const rowHeight = itemHeight + gap
@@ -41,8 +54,12 @@ export default function VirtualGrid({ items, renderItem, minItemWidth = 180, ite
 
   const visible = useMemo(() => items.slice(calc.startIndex, calc.endIndex + 1), [items, calc.startIndex, calc.endIndex])
 
+  useEffect(() => {
+    psRef.current?.update()
+  }, [width, height, items.length, calc.startIndex, calc.endIndex, calc.columns])
+
   return (
-    <div ref={ref} className={`h-full overflow-y-auto ${className}`}>
+    <div ref={ref} className={`ps h-full overflow-hidden relative ${className}`}>
       <div style={{ height: calc.topPad }} />
       <div
         className="grid"
