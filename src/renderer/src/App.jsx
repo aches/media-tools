@@ -74,7 +74,40 @@ export default function App() {
     wrapper.scrollLeft = 0
   }
 
-  const LazyMedia = ({ src, alt, rootRef, wrapperClassName, imgClassName, placeholderClassName }) => {
+  const formatBytes = (bytes) => {
+    if (!Number.isFinite(bytes)) return '未知'
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    let i = 0
+    let v = bytes
+    while (v >= 1024 && i < units.length - 1) {
+      v /= 1024
+      i += 1
+    }
+    return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`
+  }
+
+  const formatDuration = (seconds) => {
+    if (!Number.isFinite(seconds)) return '未知'
+    const total = Math.round(seconds)
+    const h = Math.floor(total / 3600)
+    const m = Math.floor((total % 3600) / 60)
+    const s = total % 60
+    const pad = (n) => String(n).padStart(2, '0')
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+  }
+
+  const loadVideoMeta = (filePath) => new Promise(resolve => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      resolve({ width: video.videoWidth, height: video.videoHeight, duration: video.duration })
+      video.src = ''
+    }
+    video.onerror = () => resolve({})
+    video.src = `safe-file://${filePath}`
+  })
+
+  const LazyMedia = ({ src, alt, rootRef, wrapperClassName, imgClassName, placeholderClassName, onLoad }) => {
     const wrapperRef = useRef(null)
     const [visible, setVisible] = useState(false)
 
@@ -99,10 +132,111 @@ export default function App() {
     return (
       <div ref={wrapperRef} className={wrapperClassName}>
         {visible ? (
-          <img src={src} alt={alt} loading="lazy" className={imgClassName} />
+          <img src={src} alt={alt} loading="lazy" className={imgClassName} onLoad={onLoad} />
         ) : (
           <div className={placeholderClassName} />
         )}
+      </div>
+    )
+  }
+
+  const MediaCard = ({ filePath, type, rootRef, thumbPath }) => {
+    const [info, setInfo] = useState({})
+    const infoRef = useRef({})
+    const pendingRef = useRef(false)
+    const hoverRef = useRef(false)
+    const hoverTimerRef = useRef(null)
+
+    useEffect(() => {
+      infoRef.current = info
+    }, [info])
+
+    useEffect(() => () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    }, [])
+
+    const loadInfo = async () => {
+      if (pendingRef.current) return
+      pendingRef.current = true
+      try {
+        const cached = infoRef.current
+        if (!cached.size) {
+          const basic = await window.api.getFileInfo(filePath)
+          if (basic?.size != null) {
+            setInfo(prev => ({ ...prev, size: basic.size, name: basic.name }))
+          }
+        }
+        if (type === 'video' && (!cached.duration || !cached.width || !cached.height)) {
+          const meta = await loadVideoMeta(filePath)
+          if (meta) setInfo(prev => ({ ...prev, ...meta }))
+        }
+      } finally {
+        pendingRef.current = false
+      }
+    }
+
+    const handleMouseEnter = () => {
+      hoverRef.current = true
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = setTimeout(() => {
+        if (hoverRef.current) loadInfo()
+      }, 120)
+    }
+
+    const handleMouseLeave = () => {
+      hoverRef.current = false
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    }
+
+    const name = info.name || filePath.split('/').pop()
+    const pathText = filePath
+    const sizeText = info.size != null ? formatBytes(info.size) : '读取中...'
+    const resolutionText = info.width && info.height ? `${info.width}×${info.height}` : '读取中...'
+    const durationText = type === 'video' ? (info.duration != null ? formatDuration(info.duration) : '读取中...') : null
+
+    return (
+      <div className="group relative border border-separator rounded-md p-2 bg-surface flex flex-col gap-2" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+        {type === 'video' ? (
+          thumbPath ? (
+            <LazyMedia
+              src={`safe-file://${thumbPath}`}
+              alt=""
+              rootRef={rootRef}
+              wrapperClassName="w-full h-32"
+              imgClassName="w-full h-full object-cover rounded"
+              placeholderClassName="w-full h-full rounded bg-muted"
+            />
+          ) : (
+            <div className="w-full h-32 rounded bg-muted flex items-center justify-center text-xs text-muted">无封面</div>
+          )
+        ) : (
+          <LazyMedia
+            src={`safe-file://${filePath}`}
+            alt=""
+            rootRef={rootRef}
+            wrapperClassName="w-full h-32"
+            imgClassName="w-full h-full object-cover rounded"
+            placeholderClassName="w-full h-full rounded bg-muted"
+            onLoad={(event) => {
+              const { naturalWidth, naturalHeight } = event.currentTarget
+              if (naturalWidth && naturalHeight) {
+                setInfo(prev => ({ ...prev, width: naturalWidth, height: naturalHeight }))
+              }
+            }}
+          />
+        )}
+        <div className="absolute inset-0 rounded-md bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity px-2 py-2 text-xs flex flex-col gap-1">
+          <div className="scroll-on-hover w-full font-medium" onMouseEnter={startTitleScroll} onMouseLeave={stopTitleScroll}>
+            <span data-scroll-text className="scroll-on-hover__content">{name}</span>
+          </div>
+          <div className="scroll-on-hover w-full" onMouseEnter={startTitleScroll} onMouseLeave={stopTitleScroll}>
+            <span data-scroll-text className="scroll-on-hover__content">{pathText}</span>
+          </div>
+          <div>大小 {sizeText}</div>
+          <div>分辨率 {resolutionText}</div>
+          {type === 'video' ? <div>时长 {durationText}</div> : null}
+        </div>
+        <div className="text-xs text-muted truncate">{name}</div>
       </div>
     )
   }
@@ -223,17 +357,7 @@ export default function App() {
                 <VirtualGrid
                   items={images.filter(p => imagesFolder === 'all' || p.split('/').slice(-2, -1)[0] === imagesFolder)}
                   renderItem={(p, { rootRef }) => (
-                    <div className="border border-separator rounded-md p-2 bg-surface flex flex-col gap-2">
-                      <LazyMedia
-                        src={`safe-file://${p}`}
-                        alt=""
-                        rootRef={rootRef}
-                        wrapperClassName="w-full h-32"
-                        imgClassName="w-full h-full object-cover rounded"
-                        placeholderClassName="w-full h-full rounded bg-muted"
-                      />
-                      <div className="text-xs text-muted truncate">{p.split('/').pop()}</div>
-                    </div>
+                    <MediaCard filePath={p} type="image" rootRef={rootRef} />
                   )}
                   minItemWidth={180}
                   itemHeight={180}
@@ -242,26 +366,9 @@ export default function App() {
               ) : (
                 <VirtualGrid
                   items={videos.filter(p => videosFolder === 'all' || p.split('/').slice(-2, -1)[0] === videosFolder)}
-                  renderItem={(p, { rootRef }) => {
-                    const thumb = videoThumbnails[p]
-                    return (
-                      <div className="border border-separator rounded-md p-2 bg-surface flex flex-col gap-2">
-                        {thumb ? (
-                          <LazyMedia
-                            src={`safe-file://${thumb}`}
-                            alt=""
-                            rootRef={rootRef}
-                            wrapperClassName="w-full h-32"
-                            imgClassName="w-full h-full object-cover rounded"
-                            placeholderClassName="w-full h-full rounded bg-muted"
-                          />
-                        ) : (
-                          <div className="w-full h-32 rounded bg-muted flex items-center justify-center text-xs text-muted">无封面</div>
-                        )}
-                        <div className="text-xs text-muted truncate">{p.split('/').pop()}</div>
-                      </div>
-                    )
-                  }}
+                  renderItem={(p, { rootRef }) => (
+                    <MediaCard filePath={p} type="video" rootRef={rootRef} thumbPath={videoThumbnails[p]} />
+                  )}
                   minItemWidth={180}
                   itemHeight={180}
                   gap={12}

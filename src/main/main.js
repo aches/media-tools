@@ -185,6 +185,16 @@ ipcMain.handle('check-updates', async () => {
   }
 })
 
+ipcMain.handle('get-file-info', async (_, filePath) => {
+  if (!filePath) return null
+  try {
+    const stat = await fs.promises.stat(filePath)
+    return { name: path.basename(filePath), size: stat.size }
+  } catch {
+    return null
+  }
+})
+
 function setupAutoUpdate() {
   autoUpdater.on('checking-for-update', () => {
     if (win) win.webContents.send('update-status', { status: 'checking' })

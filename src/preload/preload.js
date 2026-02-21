@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('api', {
   getCache: () => ipcRenderer.invoke('get-cache'),
   rescanLibraries: () => ipcRenderer.invoke('rescan-libraries'),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
+  getFileInfo: (filePath) => ipcRenderer.invoke('get-file-info', filePath),
   onUpdateStatus: (cb) => {
     const handler = (_, data) => cb(data)
     ipcRenderer.on('update-status', handler)
