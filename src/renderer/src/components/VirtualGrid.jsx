@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react'
+import React, { useRef } from 'react'
 import { AutoSizer, Grid } from 'react-virtualized'
 import 'react-virtualized/styles.css'
 
@@ -13,6 +13,7 @@ export default function VirtualGrid({ items, renderItem, minItemWidth = 180, ite
           const rowCount = Math.ceil(items.length / columnCount)
           const columnWidth = Math.max(0, Math.floor((width - gap * (columnCount + 1)) / columnCount))
           const rowHeight = itemHeight + gap
+          const cellCacheKey = `${width}-${height}-${columnCount}-${rowCount}-${columnWidth}-${rowHeight}`
 
           const cellRenderer = ({ columnIndex, rowIndex, key, style }) => {
             const index = rowIndex * columnCount + columnIndex
@@ -34,6 +35,7 @@ export default function VirtualGrid({ items, renderItem, minItemWidth = 180, ite
 
           return (
             <Grid
+              key={cellCacheKey}
               width={width}
               height={height}
               columnCount={columnCount}

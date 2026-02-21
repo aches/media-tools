@@ -288,7 +288,7 @@ export default function App() {
     <div className="flex flex-col h-screen bg-background text-foreground">
       
       
-      <main className="container flex-1 px-0 overflow-hidden">
+      <main className="flex-1 w-full overflow-hidden">
         <div className="grid grid-cols-[224px_1fr] grid-rows-[56px_1fr] h-full">
           <aside className="row-span-2 overflow-hidden">
             <div className="h-full hover-scroll overflow-x-hidden">
@@ -383,7 +383,7 @@ export default function App() {
         </div>
       </main>
       <footer className="border-t border-slate-200">
-        <div className="container py-2 text-xs text-slate-600">
+        <div className="w-full px-4 py-2 text-xs text-slate-600">
           支持扩展: 图片 png, jpg, jpeg, gif, bmp, webp, tiff；视频 mp4, mov, mkv, webm, avi, wmv, m4v
         </div>
       </footer>
