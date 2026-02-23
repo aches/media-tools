@@ -427,7 +427,7 @@ export default function App() {
       {menu.visible ? (
         <div
           ref={menuRef}
-          className="fixed z-[1100] bg-surface border border-border rounded-md shadow-lg text-sm"
+          className="fixed z-[1100] bg-surface rounded-md shadow-lg text-sm select-none"
           style={{ left: menu.x, top: menu.y }}
         >
           <button className="block w-full text-left px-3 py-2 hover:bg-muted" onClick={() => { window.api.showInFolder(menu.file); setMenu({ visible: false, x: 0, y: 0, file: null }) }}>

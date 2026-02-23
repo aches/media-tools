@@ -225,6 +225,32 @@ ipcMain.handle('open-video-window', async (_, filePath) => {
           <div class="wrap">
             <video src="safe-file://${encodeURI(filePath)}" controls autoplay></video>
           </div>
+          <script>
+            (function(){
+              const win = window
+              const video = document.querySelector('video')
+              function resizeToFit() {
+                const vw = video.videoWidth, vh = video.videoHeight
+                if (!vw || !vh) return
+                const maxW = Math.min(1280, Math.max(640, vw))
+                const maxH = Math.min(720, Math.max(360, vh))
+                // fit within limits preserving aspect
+                let w = maxW, h = Math.round(maxW * vh / vw)
+                if (h > maxH) {
+                  h = maxH
+                  w = Math.round(maxH * vw / vh)
+                }
+                const dw = win.outerWidth - win.innerWidth
+                const dh = win.outerHeight - win.innerHeight
+                try { win.resizeTo(w + dw, h + dh) } catch (e) {}
+              }
+              if (video.readyState >= 1) {
+                resizeToFit()
+              } else {
+                video.addEventListener('loadedmetadata', resizeToFit, { once: true })
+              }
+            })();
+          </script>
         </body>
       </html>`
     await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
