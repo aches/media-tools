@@ -6,6 +6,9 @@ contextBridge.exposeInMainWorld('api', {
   rescanLibraries: () => ipcRenderer.invoke('rescan-libraries'),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
   getFileInfo: (filePath) => ipcRenderer.invoke('get-file-info', filePath),
+  showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
+  deleteFile: (filePath) => ipcRenderer.invoke('delete-file', filePath),
+  openVideo: (filePath) => ipcRenderer.invoke('open-video-window', filePath),
   onUpdateStatus: (cb) => {
     const handler = (_, data) => cb(data)
     ipcRenderer.on('update-status', handler)

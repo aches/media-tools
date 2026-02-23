@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, protocol, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
@@ -192,6 +192,79 @@ ipcMain.handle('get-file-info', async (_, filePath) => {
     return { name: path.basename(filePath), size: stat.size }
   } catch {
     return null
+  }
+})
+
+ipcMain.handle('open-video-window', async (_, filePath) => {
+  if (!filePath) return false
+  try {
+    const w = new BrowserWindow({
+      width: 960,
+      height: 540,
+      title: path.basename(filePath),
+      backgroundColor: '#000000',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    })
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>${path.basename(filePath)}</title>
+          <style>
+            html,body{margin:0;height:100%;background:#000}
+            .wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
+            video{width:100%;height:100%;object-fit:contain;background:#000}
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <video src="safe-file://${encodeURI(filePath)}" controls autoplay></video>
+          </div>
+        </body>
+      </html>`
+    await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+    return true
+  } catch {
+    return false
+  }
+})
+
+ipcMain.handle('show-in-folder', async (_, filePath) => {
+  try {
+    shell.showItemInFolder(filePath)
+    return true
+  } catch {
+    return false
+  }
+})
+
+ipcMain.handle('delete-file', async (_, filePath) => {
+  if (!filePath) return false
+  try {
+    await fs.promises.unlink(filePath)
+  } catch {
+    // ignore
+  }
+  try {
+    const cache = loadCache()
+    const scanned = await scanLibraries(cache.libraries || [])
+    const videoThumbnails = await buildVideoThumbnailMap(scanned.videos, cache.videoThumbnails)
+    const saved = saveCache({ libraries: cache.libraries, images: scanned.images, videos: scanned.videos, videoThumbnails })
+    if (win) {
+      win.webContents.send('library-sync', {
+        added: { images: [], videos: [] },
+        removed: { images: [], videos: [] },
+        current: { images: saved.images, videos: saved.videos, libraries: saved.libraries, videoThumbnails: saved.videoThumbnails }
+      })
+    }
+    return true
+  } catch {
+    return false
   }
 })
 

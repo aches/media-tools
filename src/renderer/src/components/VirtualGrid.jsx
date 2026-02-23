@@ -6,14 +6,14 @@ export default function VirtualGrid({ items, renderItem, minItemWidth = 180, ite
   const containerRef = useRef(null)
 
   return (
-    <div ref={containerRef} className={`h-full overflow-hidden ${className}`}>
+    <div ref={containerRef} className={`h-full overflow-y-auto overflow-x-hidden ${className}`}>
       <AutoSizer>
         {({ width, height }) => {
           const columnCount = Math.max(1, Math.floor((width - gap) / (minItemWidth + gap)))
           const rowCount = Math.ceil(items.length / columnCount)
           const columnWidth = Math.max(0, Math.floor((width - gap * (columnCount + 1)) / columnCount))
           const rowHeight = itemHeight + gap
-          const cellCacheKey = `${width}-${height}-${columnCount}-${rowCount}-${columnWidth}-${rowHeight}`
+          const gridKey = `${width}-${height}-${columnCount}-${rowCount}-${columnWidth}-${rowHeight}`
 
           const cellRenderer = ({ columnIndex, rowIndex, key, style }) => {
             const index = rowIndex * columnCount + columnIndex
@@ -35,7 +35,7 @@ export default function VirtualGrid({ items, renderItem, minItemWidth = 180, ite
 
           return (
             <Grid
-              key={cellCacheKey}
+              key={gridKey}
               width={width}
               height={height}
               columnCount={columnCount}
@@ -45,6 +45,8 @@ export default function VirtualGrid({ items, renderItem, minItemWidth = 180, ite
               cellRenderer={cellRenderer}
               overscanRowCount={2}
               overscanColumnCount={1}
+              style={{ overflowX: 'hidden' }}
+              containerStyle={{ overflowX: 'hidden' }}
             />
           )
         }}

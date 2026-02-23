@@ -11,6 +11,8 @@ export default function App() {
   const [imagesFolder, setImagesFolder] = useState('all')
   const [videosFolder, setVideosFolder] = useState('all')
   const [updateStatus, setUpdateStatus] = useState('')
+  const [menu, setMenu] = useState({ visible: false, x: 0, y: 0, file: null })
+  const menuRef = useRef(null)
 
   useEffect(() => {
     window.api.getCache().then(cache => {
@@ -38,6 +40,25 @@ export default function App() {
       offSync?.()
     }
   }, [])
+
+  useEffect(() => {
+    if (!menu.visible) return
+    const close = () => setMenu({ visible: false, x: 0, y: 0, file: null })
+    const onMouseDown = (e) => {
+      if (!menuRef.current) return
+      if (!menuRef.current.contains(e.target)) close()
+    }
+    const onScroll = () => close()
+    const onResize = () => close()
+    document.addEventListener('mousedown', onMouseDown, true)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown, true)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [menu.visible])
 
   const pickLibraries = async () => {
     const cache = await window.api.selectDirectories()
@@ -198,8 +219,23 @@ export default function App() {
     const resolutionText = info.width && info.height ? `${info.width}×${info.height}` : '读取中...'
     const durationText = type === 'video' ? (info.duration != null ? formatDuration(info.duration) : '读取中...') : null
 
+    const handleClick = () => {
+      if (type === 'video') window.api.openVideo(filePath)
+    }
+
+    const handleContextMenu = (event) => {
+      event.preventDefault()
+      setMenu({ visible: true, x: event.clientX, y: event.clientY, file: filePath })
+    }
+
     return (
-      <div className="group relative border border-separator rounded-md p-2 bg-surface flex flex-col gap-2" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      <div
+        className="group relative border border-separator rounded-md p-2 bg-surface flex flex-col gap-2"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
         {type === 'video' ? (
           thumbPath ? (
             <LazyMedia
@@ -387,6 +423,27 @@ export default function App() {
           支持扩展: 图片 png, jpg, jpeg, gif, bmp, webp, tiff；视频 mp4, mov, mkv, webm, avi, wmv, m4v
         </div>
       </footer>
+
+      {menu.visible ? (
+        <div
+          ref={menuRef}
+          className="fixed z-[1100] bg-surface border border-border rounded-md shadow-lg text-sm"
+          style={{ left: menu.x, top: menu.y }}
+        >
+          <button className="block w-full text-left px-3 py-2 hover:bg-muted" onClick={() => { window.api.showInFolder(menu.file); setMenu({ visible: false, x: 0, y: 0, file: null }) }}>
+            打开所在文件夹
+          </button>
+          <button className="block w-full text-left px-3 py-2 text-danger hover:bg-muted" onClick={async () => {
+            const ok = window.confirm('确定删除此文件？此操作不可恢复')
+            if (ok) {
+              await window.api.deleteFile(menu.file)
+            }
+            setMenu({ visible: false, x: 0, y: 0, file: null })
+          }}>
+            删除
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
