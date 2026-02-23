@@ -45,6 +45,7 @@ export default function App() {
     if (!menu.visible) return
     const close = () => setMenu({ visible: false, x: 0, y: 0, file: null })
     const onMouseDown = (e) => {
+      if (e.button === 2) return
       if (!menuRef.current) return
       if (!menuRef.current.contains(e.target)) close()
     }
@@ -428,8 +429,10 @@ export default function App() {
         ref={menuRef}
         className="fixed z-[1100] bg-surface rounded-md shadow-lg text-sm select-none"
         style={{
-          left: menu.x,
-          top: menu.y,
+          left: 0,
+          top: 0,
+          transform: `translate3d(${menu.x}px, ${menu.y}px, 0)`,
+          willChange: 'transform',
           display: menu.visible ? 'block' : 'none'
         }}
       >
