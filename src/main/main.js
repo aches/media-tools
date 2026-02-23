@@ -201,11 +201,18 @@ ipcMain.handle('open-video-window', async (_, filePath) => {
     const w = new BrowserWindow({
       width: 960,
       height: 540,
+      show: false,
       title: path.basename(filePath),
       backgroundColor: '#000000',
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true
+      }
+    })
+    w.webContents.on('page-title-updated', (e, t) => {
+      if (typeof t === 'string' && t.endsWith('::ready')) {
+        e.preventDefault?.()
+        try { w.show() } catch {}
       }
     })
     const html = `
@@ -244,11 +251,9 @@ ipcMain.handle('open-video-window', async (_, filePath) => {
                 const dh = win.outerHeight - win.innerHeight
                 try { win.resizeTo(w + dw, h + dh) } catch (e) {}
               }
-              if (video.readyState >= 1) {
-                resizeToFit()
-              } else {
-                video.addEventListener('loadedmetadata', resizeToFit, { once: true })
-              }
+              function done(){ try { document.title = document.title + '::ready' } catch(e){} }
+              if (video.readyState >= 1) { resizeToFit(); done() }
+              else { video.addEventListener('loadedmetadata', function(){ resizeToFit(); done() }, { once: true }) }
             })();
           </script>
         </body>

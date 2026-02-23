@@ -424,26 +424,28 @@ export default function App() {
         </div>
       </footer>
 
-      {menu.visible ? (
-        <div
-          ref={menuRef}
-          className="fixed z-[1100] bg-surface rounded-md shadow-lg text-sm select-none"
-          style={{ left: menu.x, top: menu.y }}
-        >
-          <button className="block w-full text-left px-3 py-2 hover:bg-muted" onClick={() => { window.api.showInFolder(menu.file); setMenu({ visible: false, x: 0, y: 0, file: null }) }}>
-            打开所在文件夹
-          </button>
-          <button className="block w-full text-left px-3 py-2 text-danger hover:bg-muted" onClick={async () => {
-            const ok = window.confirm('确定删除此文件？此操作不可恢复')
-            if (ok) {
-              await window.api.deleteFile(menu.file)
-            }
-            setMenu({ visible: false, x: 0, y: 0, file: null })
-          }}>
-            删除
-          </button>
-        </div>
-      ) : null}
+      <div
+        ref={menuRef}
+        className="fixed z-[1100] bg-surface rounded-md shadow-lg text-sm select-none"
+        style={{
+          left: menu.x,
+          top: menu.y,
+          display: menu.visible ? 'block' : 'none'
+        }}
+      >
+        <button className="block w-full text-left px-3 py-2 hover:bg-muted" onClick={() => { window.api.showInFolder(menu.file); setMenu({ visible: false, x: 0, y: 0, file: null }) }}>
+          打开所在文件夹
+        </button>
+        <button className="block w-full text-left px-3 py-2 text-danger hover:bg-muted" onClick={async () => {
+          const ok = window.confirm('确定删除此文件？此操作不可恢复')
+          if (ok) {
+            await window.api.deleteFile(menu.file)
+          }
+          setMenu({ visible: false, x: 0, y: 0, file: null })
+        }}>
+          删除
+        </button>
+      </div>
     </div>
   )
 }
