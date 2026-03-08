@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('api', {
   rescanLibraries: () => ipcRenderer.invoke('rescan-libraries'),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
   getFileInfo: (filePath) => ipcRenderer.invoke('get-file-info', filePath),
+  openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath),
+  deleteFolder: (folderPath) => ipcRenderer.invoke('delete-folder', folderPath),
   showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
   deleteFile: (filePath) => ipcRenderer.invoke('delete-file', filePath),
   deleteFiles: (filePaths) => ipcRenderer.invoke('delete-files', filePaths),

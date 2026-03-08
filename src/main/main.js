@@ -458,6 +458,34 @@ ipcMain.handle('get-file-info', async (_, filePath) => {
   }
 })
 
+ipcMain.handle('open-folder', async (_, folderPath) => {
+  if (!folderPath) return false
+  try {
+    const err = await shell.openPath(folderPath)
+    if (err) {
+      pushDebugLog('warn', '打开文件夹失败', { folderPath, err })
+      return false
+    }
+    return true
+  } catch (error) {
+    pushDebugLog('error', '打开文件夹异常', { folderPath, error })
+    return false
+  }
+})
+
+ipcMain.handle('delete-folder', async (_, folderPath) => {
+  if (!folderPath) return false
+  try {
+    await fs.promises.rm(folderPath, { recursive: true, force: true })
+    await refreshCacheFromLibraries(loadCache())
+    pushDebugLog('info', '文件夹删除完成', { folderPath })
+    return true
+  } catch (error) {
+    pushDebugLog('error', '删除文件夹失败', { folderPath, error })
+    return false
+  }
+})
+
 ipcMain.handle('open-video-window', async (_, filePath) => {
   if (!filePath) return false
   try {

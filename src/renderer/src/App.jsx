@@ -8,9 +8,17 @@ function getPathParts(filePath) {
   return String(filePath || '').split(/[\\/]/).filter(Boolean)
 }
 
-function getFolderName(filePath) {
-  const parts = getPathParts(filePath)
-  return parts.length > 1 ? parts[parts.length - 2] : ''
+function getFolderPath(filePath) {
+  const value = String(filePath || '')
+  if (!value) return ''
+  const slashIndex = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))
+  if (slashIndex <= 0) return ''
+  return value.slice(0, slashIndex)
+}
+
+function getFolderName(folderPath) {
+  const parts = getPathParts(folderPath)
+  return parts.length ? parts[parts.length - 1] : ''
 }
 
 export default function App() {
@@ -26,9 +34,12 @@ export default function App() {
   const [showLogPanel, setShowLogPanel] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
   const [menu, setMenu] = useState({ visible: false, x: 0, y: 0, file: null, targets: [] })
+  const [folderMenu, setFolderMenu] = useState({ visible: false, x: 0, y: 0, folderPath: '', folderName: '' })
   const menuRef = useRef(null)
+  const folderMenuRef = useRef(null)
 
   const closeMenu = () => setMenu({ visible: false, x: 0, y: 0, file: null, targets: [] })
+  const closeFolderMenu = () => setFolderMenu({ visible: false, x: 0, y: 0, folderPath: '', folderName: '' })
 
   useEffect(() => {
     window.api.getCache().then(cache => {
@@ -65,14 +76,23 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!menu.visible) return
+    if (!menu.visible && !folderMenu.visible) return
     const onMouseDown = (e) => {
       if (e.button === 2) return
-      if (!menuRef.current) return
-      if (!menuRef.current.contains(e.target)) closeMenu()
+      const inFileMenu = menuRef.current?.contains(e.target)
+      const inFolderMenu = folderMenuRef.current?.contains(e.target)
+      if (inFileMenu || inFolderMenu) return
+      closeMenu()
+      closeFolderMenu()
     }
-    const onScroll = () => closeMenu()
-    const onResize = () => closeMenu()
+    const onScroll = () => {
+      closeMenu()
+      closeFolderMenu()
+    }
+    const onResize = () => {
+      closeMenu()
+      closeFolderMenu()
+    }
     document.addEventListener('mousedown', onMouseDown, true)
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onResize)
@@ -81,16 +101,41 @@ export default function App() {
       window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)
     }
-  }, [menu.visible])
+  }, [menu.visible, folderMenu.visible])
 
   useEffect(() => {
     if (!previewImage) return
+    const currentImages = images.filter((p) => imagesFolder === 'all' || getFolderPath(p) === imagesFolder)
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') setPreviewImage(null)
+      if (e.key === 'Escape') {
+        setPreviewImage(null)
+        return
+      }
+      if (!currentImages.length) return
+      const currentIndex = currentImages.indexOf(previewImage)
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (currentIndex < 0) {
+          setPreviewImage(currentImages[0])
+          return
+        }
+        const nextIndex = (currentIndex - 1 + currentImages.length) % currentImages.length
+        setPreviewImage(currentImages[nextIndex])
+        return
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (currentIndex < 0) {
+          setPreviewImage(currentImages[0])
+          return
+        }
+        const nextIndex = (currentIndex + 1) % currentImages.length
+        setPreviewImage(currentImages[nextIndex])
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [previewImage])
+  }, [previewImage, images, imagesFolder])
 
   useEffect(() => {
     const existing = new Set([...images, ...videos])
@@ -123,6 +168,7 @@ export default function App() {
     setVideoThumbnails(cache.videoThumbnails || {})
     setSelectedFiles(new Set())
     closeMenu()
+    closeFolderMenu()
   }
 
   const clearLibraryLinks = async () => {
@@ -135,6 +181,7 @@ export default function App() {
     setVideoThumbnails(cache.videoThumbnails || {})
     setSelectedFiles(new Set())
     closeMenu()
+    closeFolderMenu()
   }
 
   const rescan = async () => {
@@ -210,7 +257,43 @@ export default function App() {
     const useCurrentSelection = selectedFiles.has(filePath) && selectedFiles.size > 1
     const targets = useCurrentSelection ? Array.from(selectedFiles) : [filePath]
     if (!useCurrentSelection) setSelectedFiles(new Set([filePath]))
+    closeFolderMenu()
     setMenu({ visible: true, x, y, file: filePath, targets })
+  }
+
+  const handleFolderContextMenu = (event, folderPath) => {
+    if (!folderPath) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (tab === 'images') setImagesFolder(folderPath)
+    else setVideosFolder(folderPath)
+    setSelectedFiles(new Set())
+    closeMenu()
+    setFolderMenu({
+      visible: true,
+      x: event.clientX,
+      y: event.clientY,
+      folderPath,
+      folderName: getFolderName(folderPath)
+    })
+  }
+
+  const openFolderTarget = async (folderPath) => {
+    if (!folderPath) return
+    const success = await window.api.openFolder?.(folderPath)
+    if (!success) window.alert('打开文件夹失败，请查看日志面板。')
+    closeFolderMenu()
+  }
+
+  const deleteFolderTarget = async (folderPath, folderName) => {
+    if (!folderPath) return
+    const label = folderName || getFolderName(folderPath) || folderPath
+    const ok = window.confirm(`确定删除文件夹“${label}”及其全部内容？此操作不可恢复`)
+    if (!ok) return
+    const success = await window.api.deleteFolder?.(folderPath)
+    if (!success) window.alert('删除文件夹失败，请查看日志面板。')
+    setSelectedFiles(new Set())
+    closeFolderMenu()
   }
 
   const deleteTargets = async (targets) => {
@@ -246,24 +329,30 @@ export default function App() {
   }
 
   const filteredImages = useMemo(
-    () => images.filter(p => imagesFolder === 'all' || getFolderName(p) === imagesFolder),
+    () => images.filter(p => imagesFolder === 'all' || getFolderPath(p) === imagesFolder),
     [images, imagesFolder]
   )
 
   const filteredVideos = useMemo(
-    () => videos.filter(p => videosFolder === 'all' || getFolderName(p) === videosFolder),
+    () => videos.filter(p => videosFolder === 'all' || getFolderPath(p) === videosFolder),
     [videos, videosFolder]
   )
 
   const imageDirs = useMemo(() => {
-    const set = new Set(images.map(getFolderName).filter(Boolean))
-    return ['all', ...Array.from(set).sort()]
+    const set = new Set(images.map(getFolderPath).filter(Boolean))
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [images])
 
   const videoDirs = useMemo(() => {
-    const set = new Set(videos.map(getFolderName).filter(Boolean))
-    return ['all', ...Array.from(set).sort()]
+    const set = new Set(videos.map(getFolderPath).filter(Boolean))
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [videos])
+
+  useEffect(() => {
+    if (!previewImage) return
+    if (filteredImages.includes(previewImage)) return
+    setPreviewImage(filteredImages[0] || null)
+  }, [previewImage, filteredImages])
 
   const selectedCount = selectedFiles.size
   const formatLogTime = (iso) => {
@@ -301,15 +390,21 @@ export default function App() {
                     <span data-scroll-text className="scroll-on-hover__content">全部</span>
                   </div>
                 </ListBox.Item>
-                {(tab === 'images' ? imageDirs : videoDirs).filter(id => id !== 'all').map(id => (
+                {(tab === 'images' ? imageDirs : videoDirs).map((dirPath) => (
                   <ListBox.Item
-                    key={id}
-                    id={id}
-                    textValue={id}
+                    key={dirPath}
+                    id={dirPath}
+                    textValue={dirPath}
                     className="rounded-lg px-3 py-2 data-[selected=true]:bg-primary/10 data-[selected=true]:text-foreground data-[selected]:bg-primary/10 data-[selected]:text-foreground"
+                    onContextMenu={(e) => handleFolderContextMenu(e, dirPath)}
                   >
-                    <div className="scroll-on-hover w-full" onMouseEnter={startTitleScroll} onMouseLeave={stopTitleScroll}>
-                      <span data-scroll-text className="scroll-on-hover__content">{id}</span>
+                    <div
+                      className="scroll-on-hover w-full"
+                      title={dirPath}
+                      onMouseEnter={startTitleScroll}
+                      onMouseLeave={stopTitleScroll}
+                    >
+                      <span data-scroll-text className="scroll-on-hover__content">{getFolderName(dirPath) || dirPath}</span>
                     </div>
                   </ListBox.Item>
                 ))}
@@ -458,6 +553,25 @@ export default function App() {
         </button>
       </div>
 
+      <div
+        ref={folderMenuRef}
+        className="fixed z-[1110] bg-surface rounded-md shadow-lg text-sm select-none"
+        style={{
+          left: 0,
+          top: 0,
+          transform: `translate3d(${folderMenu.x}px, ${folderMenu.y}px, 0)`,
+          willChange: 'transform',
+          display: folderMenu.visible ? 'block' : 'none'
+        }}
+      >
+        <button className="block w-full text-left px-3 py-2 hover:bg-muted" onClick={() => openFolderTarget(folderMenu.folderPath)}>
+          打开文件夹
+        </button>
+        <button className="block w-full text-left px-3 py-2 text-danger hover:bg-muted" onClick={() => deleteFolderTarget(folderMenu.folderPath, folderMenu.folderName)}>
+          删除文件夹
+        </button>
+      </div>
+
       {showLogPanel ? (
         <div className="fixed inset-x-3 bottom-3 z-[1350] h-[240px] rounded-md border border-border bg-black/90 text-emerald-100 shadow-2xl">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-white/20 text-xs">
@@ -485,6 +599,9 @@ export default function App() {
             className="max-w-[92vw] max-h-[88vh] object-contain rounded-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
+          <div className="absolute bottom-4 text-xs text-white/75 pointer-events-none">
+            ← / → 切换上一张或下一张，Esc 关闭
+          </div>
         </div>
       ) : null}
     </div>
