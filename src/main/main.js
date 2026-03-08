@@ -9,6 +9,155 @@ const { loadCache, saveCache } = require('./store')
 
 let win
 const THUMB_DIR = path.join(app.getPath('userData'), 'video-thumbs')
+let loggedFfmpegError = false
+const DEBUG_LOG_LIMIT = 400
+const debugLogs = []
+let resolvedFfmpegPathCache = null
+
+function normalizeLogValue(value) {
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message, stack: value.stack }
+  }
+  if (value == null) return value
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+  try {
+    return JSON.parse(JSON.stringify(value))
+  } catch {
+    return String(value)
+  }
+}
+
+function pushDebugLog(level, message, data = {}) {
+  const entry = {
+    time: new Date().toISOString(),
+    level,
+    message,
+    data: normalizeLogValue(data)
+  }
+  debugLogs.push(entry)
+  if (debugLogs.length > DEBUG_LOG_LIMIT) debugLogs.shift()
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('debug-log', entry)
+  }
+}
+
+function reportFfmpegError(reason, extra = {}) {
+  if (loggedFfmpegError) return
+  loggedFfmpegError = true
+  pushDebugLog('error', 'ffmpeg 不可用，视频封面生成失败', { reason, ffmpegPath, resolvedFfmpegPath: getResolvedFfmpegPath(), ...extra })
+  console.error('[thumbnail] ffmpeg 不可用，视频封面生成失败', {
+    reason,
+    ffmpegPath,
+    resolvedFfmpegPath: getResolvedFfmpegPath(),
+    ...extra
+  })
+}
+
+function resolveAsarUnpackedPath(binPath) {
+  if (!binPath || typeof binPath !== 'string') return ''
+  if (!binPath.includes('app.asar')) return binPath
+  return binPath.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1')
+}
+
+function isRunnableBinaryPath(binPath) {
+  if (!binPath || typeof binPath !== 'string') return false
+  // ffmpeg cannot be spawned from inside app.asar
+  if (binPath.includes('app.asar') && !binPath.includes('app.asar.unpacked')) return false
+  try {
+    return fs.existsSync(binPath) && fs.statSync(binPath).isFile()
+  } catch {
+    return false
+  }
+}
+
+function getFfmpegCandidates() {
+  const exeName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+  const out = []
+  const push = (p) => {
+    if (!p || out.includes(p)) return
+    out.push(p)
+  }
+
+  if (ffmpegPath) {
+    // Prefer unpacked path first in packaged apps.
+    push(resolveAsarUnpackedPath(ffmpegPath))
+    push(ffmpegPath)
+  }
+
+  if (process.resourcesPath) {
+    push(path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', exeName))
+    push(path.join(process.resourcesPath, 'node_modules', 'ffmpeg-static', exeName))
+  }
+
+  return out
+}
+
+function getResolvedFfmpegPath() {
+  if (resolvedFfmpegPathCache) return resolvedFfmpegPathCache
+  const candidates = getFfmpegCandidates()
+  const found = candidates.find((p) => isRunnableBinaryPath(p))
+  resolvedFfmpegPathCache = found || ''
+  return resolvedFfmpegPathCache
+}
+
+function toSafeFileUrl(filePath) {
+  if (!filePath || typeof filePath !== 'string') return ''
+  const normalized = filePath.replace(/\\/g, '/')
+  const encoded = encodeURI(normalized).replace(/\?/g, '%3F').replace(/#/g, '%23')
+  if (encoded.startsWith('/')) return `safe-file://${encoded}`
+  return `safe-file:///${encoded}`
+}
+
+function resolveSafeFileRequestPath(requestUrl) {
+  if (!requestUrl || typeof requestUrl !== 'string') return ''
+
+  try {
+    const parsed = new URL(requestUrl)
+    let pathname = parsed.pathname || ''
+    try {
+      pathname = decodeURIComponent(pathname)
+    } catch {
+      // keep raw pathname
+    }
+
+    // legacy format, e.g. safe-file:///%2FUsers%2Fa%2Fxx.jpg
+    if (/^\/%2[fF]/.test(parsed.pathname || '')) {
+      return pathname.replace(/^\/+/, '/')
+    }
+
+    // malformed windows url from old code: safe-file://d/st/file.mp4
+    // should be treated as d:/st/file.mp4
+    if (/^[A-Za-z]$/.test(parsed.hostname || '')) {
+      return `${parsed.hostname}:${pathname}`
+    }
+
+    if (parsed.hostname) {
+      // UNC path: safe-file://server/share/file
+      return `//${parsed.hostname}${pathname}`
+    }
+
+    // Windows file URL often comes as /C:/path.
+    if (process.platform === 'win32') {
+      return pathname.replace(/^\/+([A-Za-z]:[\\/])/, '$1')
+    }
+
+    return pathname
+  } catch {
+    // best-effort fallback for malformed inputs
+    const prefix = 'safe-file://'
+    if (!requestUrl.startsWith(prefix)) return ''
+    let raw = requestUrl.slice(prefix.length)
+    const hashIndex = raw.indexOf('#')
+    if (hashIndex >= 0) raw = raw.slice(0, hashIndex)
+    const queryIndex = raw.indexOf('?')
+    if (queryIndex >= 0) raw = raw.slice(0, queryIndex)
+    try {
+      return decodeURIComponent(raw)
+    } catch {
+      return raw
+    }
+  }
+}
 
 // 注册自定义安全协议，允许在 http 开发环境安全加载本地文件
 protocol.registerSchemesAsPrivileged?.([
@@ -28,11 +177,29 @@ function createWindow() {
       contextIsolation: true
     }
   })
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    const key = String(input.key || '').toLowerCase()
+    if ((input.control || input.meta) && input.shift && key === 'i') {
+      event.preventDefault()
+      win.webContents.toggleDevTools()
+      return
+    }
+    if ((input.control || input.meta) && input.shift && key === 'l') {
+      event.preventDefault()
+      win.webContents.send('toggle-log-panel')
+      return
+    }
+    if (key === 'f12') {
+      event.preventDefault()
+      win.webContents.toggleDevTools()
+    }
+  })
   const isDev = !app.isPackaged
   if (isDev) {
     win.loadURL('http://localhost:5173')
   } else {
-    win.loadFile(path.join(__dirname, '../renderer/index.html'))
+    win.loadFile(path.join(__dirname, '../renderer/dist/index.html'))
   }
 }
 
@@ -96,10 +263,21 @@ async function ensureVideoThumbnail(videoPath) {
     ])
     if (tStat.mtimeMs >= vStat.mtimeMs) return thumbPath
   } catch {}
+  const ffmpegExecPath = getResolvedFfmpegPath()
+  if (!ffmpegExecPath || !fs.existsSync(ffmpegExecPath)) {
+    reportFfmpegError('not_found', { videoPath, ffmpegExecPath })
+    throw new Error('ffmpeg not found')
+  }
+  pushDebugLog('info', '开始生成视频封面', {
+    videoPath,
+    thumbPath,
+    ffmpegPath,
+    ffmpegExecPath
+  })
   await fs.promises.mkdir(THUMB_DIR, { recursive: true })
   await new Promise((resolve, reject) => {
     const proc = spawn(
-      ffmpegPath,
+      ffmpegExecPath,
       [
         '-y',
         '-ss',
@@ -114,9 +292,19 @@ async function ensureVideoThumbnail(videoPath) {
       ],
       { windowsHide: true }
     )
-    proc.on('error', reject)
-    proc.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exit ${code}`))))
+    proc.on('error', (err) => {
+      reportFfmpegError('spawn_error', { message: err?.message, videoPath, ffmpegExecPath })
+      reject(err)
+    })
+    proc.on('exit', (code) => {
+      if (code === 0) resolve()
+      else {
+        reportFfmpegError('bad_exit', { code, videoPath, ffmpegExecPath })
+        reject(new Error(`ffmpeg exit ${code}`))
+      }
+    })
   })
+  pushDebugLog('info', '视频封面生成完成', { videoPath, thumbPath })
   return thumbPath
 }
 
@@ -141,6 +329,33 @@ async function buildVideoThumbnailMap(videos, prevMap = {}) {
   return map
 }
 
+function emitLibrarySync(saved, added = { images: [], videos: [] }, removed = { images: [], videos: [] }) {
+  if (!win) return
+  win.webContents.send('library-sync', {
+    added,
+    removed,
+    current: {
+      images: saved.images,
+      videos: saved.videos,
+      libraries: saved.libraries,
+      videoThumbnails: saved.videoThumbnails
+    }
+  })
+}
+
+async function refreshCacheFromLibraries(cache = loadCache()) {
+  const scanned = await scanLibraries(cache.libraries || [])
+  const videoThumbnails = await buildVideoThumbnailMap(scanned.videos, cache.videoThumbnails)
+  const saved = saveCache({
+    libraries: cache.libraries || [],
+    images: scanned.images,
+    videos: scanned.videos,
+    videoThumbnails
+  })
+  emitLibrarySync(saved)
+  return saved
+}
+
 ipcMain.handle('select-directories', async () => {
   const res = await dialog.showOpenDialog({ properties: ['openDirectory', 'multiSelections'] })
   if (res.canceled || !res.filePaths?.length) return loadCache()
@@ -155,6 +370,54 @@ ipcMain.handle('select-directories', async () => {
 ipcMain.handle('get-cache', async () => {
   const cache = loadCache()
   return cache
+})
+
+ipcMain.handle('get-debug-logs', async () => {
+  return debugLogs
+})
+
+ipcMain.handle('open-devtools', async () => {
+  if (!win || win.isDestroyed()) return false
+  win.webContents.openDevTools({ mode: 'detach' })
+  return true
+})
+
+ipcMain.handle('clear-cache', async () => {
+  const cache = loadCache()
+  try {
+    await fs.promises.rm(THUMB_DIR, { recursive: true, force: true })
+  } catch {}
+  const saved = saveCache({
+    libraries: cache.libraries || [],
+    images: [],
+    videos: [],
+    videoThumbnails: {}
+  })
+  emitLibrarySync(
+    saved,
+    { images: [], videos: [] },
+    { images: cache.images || [], videos: cache.videos || [] }
+  )
+  return saved
+})
+
+ipcMain.handle('clear-library-links', async () => {
+  const cache = loadCache()
+  try {
+    await fs.promises.rm(THUMB_DIR, { recursive: true, force: true })
+  } catch {}
+  const saved = saveCache({
+    libraries: [],
+    images: [],
+    videos: [],
+    videoThumbnails: {}
+  })
+  emitLibrarySync(
+    saved,
+    { images: [], videos: [] },
+    { images: cache.images || [], videos: cache.videos || [] }
+  )
+  return saved
 })
 
 ipcMain.handle('rescan-libraries', async () => {
@@ -230,7 +493,7 @@ ipcMain.handle('open-video-window', async (_, filePath) => {
         </head>
         <body>
           <div class="wrap">
-            <video src="safe-file://${encodeURI(filePath)}" controls autoplay></video>
+            <video src="${toSafeFileUrl(filePath)}" controls autoplay></video>
           </div>
           <script>
             (function(){
@@ -282,17 +545,26 @@ ipcMain.handle('delete-file', async (_, filePath) => {
     // ignore
   }
   try {
-    const cache = loadCache()
-    const scanned = await scanLibraries(cache.libraries || [])
-    const videoThumbnails = await buildVideoThumbnailMap(scanned.videos, cache.videoThumbnails)
-    const saved = saveCache({ libraries: cache.libraries, images: scanned.images, videos: scanned.videos, videoThumbnails })
-    if (win) {
-      win.webContents.send('library-sync', {
-        added: { images: [], videos: [] },
-        removed: { images: [], videos: [] },
-        current: { images: saved.images, videos: saved.videos, libraries: saved.libraries, videoThumbnails: saved.videoThumbnails }
-      })
-    }
+    await refreshCacheFromLibraries(loadCache())
+    return true
+  } catch {
+    return false
+  }
+})
+
+ipcMain.handle('delete-files', async (_, filePaths) => {
+  if (!Array.isArray(filePaths) || !filePaths.length) return false
+  try {
+    await Promise.all(
+      filePaths
+        .filter((p) => typeof p === 'string' && p)
+        .map(async (filePath) => {
+          try {
+            await fs.promises.unlink(filePath)
+          } catch {}
+        })
+    )
+    await refreshCacheFromLibraries(loadCache())
     return true
   } catch {
     return false
@@ -321,13 +593,28 @@ function setupAutoUpdate() {
 }
 
 app.whenReady().then(() => {
+  pushDebugLog('info', '应用启动', {
+    platform: process.platform,
+    arch: process.arch,
+    isPackaged: app.isPackaged,
+    ffmpegPath,
+    ffmpegExists: !!ffmpegPath && fs.existsSync(ffmpegPath),
+    ffmpegCandidates: getFfmpegCandidates().map((p) => ({
+      path: p,
+      exists: (() => { try { return fs.existsSync(p) } catch { return false } })(),
+      runnable: isRunnableBinaryPath(p)
+    })),
+    resolvedFfmpegPath: getResolvedFfmpegPath(),
+    resolvedFfmpegExists: !!getResolvedFfmpegPath() && fs.existsSync(getResolvedFfmpegPath())
+  })
   protocol.registerFileProtocol('safe-file', (request, callback) => {
-    const url = request.url.replace('safe-file://', '')
-    try {
-      callback({ path: decodeURI(url) })
-    } catch {
-      callback({ path: '' })
+    const filePath = resolveSafeFileRequestPath(request.url)
+    if (!filePath) {
+      pushDebugLog('warn', 'safe-file 解析失败', { url: request.url })
+      callback({ error: -6 })
+      return
     }
+    callback(filePath)
   })
   createWindow()
   // 启动时同步一次媒体库

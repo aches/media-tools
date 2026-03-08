@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react'
 import LazyMedia from './LazyMedia.jsx'
+import { toSafeFileUrl } from '../lib/utils.js'
 
 export default function MediaCard({
   filePath,
   type,
   rootRef,
   thumbPath,
+  selected = false,
   onContextMenu,
+  onOpenImage,
   onOpenVideo,
   formatBytes,
   formatDuration,
@@ -69,16 +72,19 @@ export default function MediaCard({
 
   return (
     <div
-      className="group relative border border-separator rounded-md p-2 bg-surface flex flex-col gap-2"
+      className={`group relative border rounded-md p-2 bg-surface flex flex-col gap-2 ${selected ? 'border-primary ring-2 ring-primary/40' : 'border-separator'}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onClick={() => { if (type === 'video') onOpenVideo?.(filePath) }}
-      onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(filePath, e.clientX, e.clientY) }}
+      onClick={(e) => {
+        if (type === 'video') onOpenVideo?.(filePath, e)
+        else onOpenImage?.(filePath, e)
+      }}
+      onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(filePath, e.clientX, e.clientY, e) }}
     >
       {type === 'video' ? (
         thumbPath ? (
           <LazyMedia
-            src={`safe-file://${thumbPath}`}
+            src={toSafeFileUrl(thumbPath)}
             alt=""
             rootRef={rootRef}
             wrapperClassName="w-full h-32"
@@ -90,7 +96,7 @@ export default function MediaCard({
         )
       ) : (
         <LazyMedia
-          src={`safe-file://${filePath}`}
+          src={toSafeFileUrl(filePath)}
           alt=""
           rootRef={rootRef}
           wrapperClassName="w-full h-32"
@@ -119,4 +125,3 @@ export default function MediaCard({
     </div>
   )
 }
-

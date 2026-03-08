@@ -5,6 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   root: path.resolve(__dirname, 'src/renderer'),
+  base: './',
   server: {
     port: 5173,
     strictPort: true

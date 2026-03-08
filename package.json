@@ -7,10 +7,11 @@
   "scripts": {
     "start": "electron .",
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "build": "electron-builder",
+    "build": "npm run renderer:build && electron-builder",
     "postinstall": "electron-builder install-app-deps",
     "renderer:build": "vite build",
-    "build:win": "electron-builder --win"
+    "prepare:ffmpeg:win": "node scripts/prepare-ffmpeg-win.js",
+    "build:win": "npm run renderer:build && npm run prepare:ffmpeg:win && electron-builder --win"
   },
   "dependencies": {
     "@heroui/react": "^3.0.0-beta.6",
@@ -34,6 +35,7 @@
     "wait-on": "^7.2.0"
   },
   "build": {
+    "productName": "MediaPlayer",
     "appId": "com.boom.mediaplayer",
     "directories": {
       "output": "dist"
@@ -49,10 +51,23 @@
       "category": "public.app-category.photography"
     },
     "win": {
-      "icon": "build/icons/icon.png",
+      "icon": "build/icons/icon.ico",
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MediaPlayer"
     },
     "linux": {
       "target": [

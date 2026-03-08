@@ -1,7 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Tabs, TagGroup, Tag, ListBox, Popover } from '@heroui/react'
+import { Button, TagGroup, Tag, ListBox, Popover } from '@heroui/react'
 import VirtualGrid from './components/VirtualGrid.jsx'
 import MediaCard from './components/MediaCard.jsx'
+import { toSafeFileUrl } from './lib/utils.js'
+
+function getPathParts(filePath) {
+  return String(filePath || '').split(/[\\/]/).filter(Boolean)
+}
+
+function getFolderName(filePath) {
+  const parts = getPathParts(filePath)
+  return parts.length > 1 ? parts[parts.length - 2] : ''
+}
 
 export default function App() {
   const [libraries, setLibraries] = useState([])
@@ -11,9 +21,14 @@ export default function App() {
   const [tab, setTab] = useState('images')
   const [imagesFolder, setImagesFolder] = useState('all')
   const [videosFolder, setVideosFolder] = useState('all')
-  const [updateStatus, setUpdateStatus] = useState('')
-  const [menu, setMenu] = useState({ visible: false, x: 0, y: 0, file: null })
+  const [selectedFiles, setSelectedFiles] = useState(new Set())
+  const [debugLogs, setDebugLogs] = useState([])
+  const [showLogPanel, setShowLogPanel] = useState(false)
+  const [previewImage, setPreviewImage] = useState(null)
+  const [menu, setMenu] = useState({ visible: false, x: 0, y: 0, file: null, targets: [] })
   const menuRef = useRef(null)
+
+  const closeMenu = () => setMenu({ visible: false, x: 0, y: 0, file: null, targets: [] })
 
   useEffect(() => {
     window.api.getCache().then(cache => {
@@ -22,36 +37,42 @@ export default function App() {
       setVideos(cache.videos || [])
       setVideoThumbnails(cache.videoThumbnails || {})
     })
-    const offUpdate = window.api.onUpdateStatus(s => {
-      if (s.status === 'checking') setUpdateStatus('正在检查更新')
-      else if (s.status === 'available') setUpdateStatus('发现更新，正在下载')
-      else if (s.status === 'downloading') setUpdateStatus(`下载中 ${Math.round(s.progress || 0)}%`)
-      else if (s.status === 'ready') setUpdateStatus('更新已下载，稍后将安装')
-      else if (s.status === 'none') setUpdateStatus('暂无可用更新')
-      else if (s.status === 'error') setUpdateStatus('更新出错')
-    })
+    const offUpdate = window.api.onUpdateStatus(() => {})
     const offSync = window.api.onLibrarySync(s => {
       setLibraries(s.current.libraries || [])
       setImages(s.current.images || [])
       setVideos(s.current.videos || [])
       setVideoThumbnails(s.current.videoThumbnails || {})
     })
+    window.api.getDebugLogs?.().then((logs) => {
+      setDebugLogs(Array.isArray(logs) ? logs : [])
+    }).catch(() => {})
+    const offDebug = window.api.onDebugLog?.((entry) => {
+      setDebugLogs((prev) => {
+        const next = [...prev, entry]
+        return next.length > 300 ? next.slice(next.length - 300) : next
+      })
+    })
+    const offToggleLog = window.api.onToggleLogPanel?.(() => {
+      setShowLogPanel((v) => !v)
+    })
     return () => {
       offUpdate?.()
       offSync?.()
+      offDebug?.()
+      offToggleLog?.()
     }
   }, [])
 
   useEffect(() => {
     if (!menu.visible) return
-    const close = () => setMenu({ visible: false, x: 0, y: 0, file: null })
     const onMouseDown = (e) => {
       if (e.button === 2) return
       if (!menuRef.current) return
-      if (!menuRef.current.contains(e.target)) close()
+      if (!menuRef.current.contains(e.target)) closeMenu()
     }
-    const onScroll = () => close()
-    const onResize = () => close()
+    const onScroll = () => closeMenu()
+    const onResize = () => closeMenu()
     document.addEventListener('mousedown', onMouseDown, true)
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onResize)
@@ -62,12 +83,58 @@ export default function App() {
     }
   }, [menu.visible])
 
+  useEffect(() => {
+    if (!previewImage) return
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setPreviewImage(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [previewImage])
+
+  useEffect(() => {
+    const existing = new Set([...images, ...videos])
+    setSelectedFiles(prev => {
+      if (!prev.size) return prev
+      const next = new Set()
+      prev.forEach((p) => {
+        if (existing.has(p)) next.add(p)
+      })
+      return next.size === prev.size ? prev : next
+    })
+  }, [images, videos])
+
   const pickLibraries = async () => {
     const cache = await window.api.selectDirectories()
     setLibraries(cache.libraries || [])
     setImages(cache.images || [])
     setVideos(cache.videos || [])
     setVideoThumbnails(cache.videoThumbnails || {})
+    setSelectedFiles(new Set())
+  }
+
+  const clearCache = async () => {
+    const ok = window.confirm('确认清空缓存吗？将清空当前缓存列表与缩略图。')
+    if (!ok) return
+    const cache = await window.api.clearCache()
+    setLibraries(cache.libraries || [])
+    setImages(cache.images || [])
+    setVideos(cache.videos || [])
+    setVideoThumbnails(cache.videoThumbnails || {})
+    setSelectedFiles(new Set())
+    closeMenu()
+  }
+
+  const clearLibraryLinks = async () => {
+    const ok = window.confirm('确认清空媒体库关联吗？不会删除磁盘中的任何文件。')
+    if (!ok) return
+    const cache = await window.api.clearLibraryLinks()
+    setLibraries(cache.libraries || [])
+    setImages(cache.images || [])
+    setVideos(cache.videos || [])
+    setVideoThumbnails(cache.videoThumbnails || {})
+    setSelectedFiles(new Set())
+    closeMenu()
   }
 
   const rescan = async () => {
@@ -127,52 +194,87 @@ export default function App() {
       video.src = ''
     }
     video.onerror = () => resolve({})
-    video.src = `safe-file://${filePath}`
+    video.src = toSafeFileUrl(filePath)
   })
 
-  const ImageCards = useMemo(() => (
-    images.length ? images
-      .filter(p => imagesFolder === 'all' || p.split('/').slice(-2, -1)[0] === imagesFolder)
-      .map(p => (
-      <div key={p} className="border border-slate-200 rounded-md p-2 bg-white flex flex-col gap-2">
-        <img src={`safe-file://${p}`} alt="" className="w-full h-32 object-cover rounded" />
-        <div className="text-xs text-slate-600 truncate">{p.split('/').pop()}</div>
-      </div>
-    )) : <div className="p-6 text-slate-500">暂无图片</div>
-  ), [images, imagesFolder])
+  const toggleSelected = (filePath) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(filePath)) next.delete(filePath)
+      else next.add(filePath)
+      return next
+    })
+  }
 
-  const VideoCards = useMemo(() => (
-    videos.length ? videos
-      .filter(p => videosFolder === 'all' || p.split('/').slice(-2, -1)[0] === videosFolder)
-      .map(p => {
-      const thumb = videoThumbnails[p]
-      return (
-      <div key={p} className="border border-slate-200 rounded-md p-2 bg-white flex flex-col gap-2">
-        {thumb ? (
-          <img src={`safe-file://${thumb}`} alt="" className="w-full h-32 object-cover rounded" />
-        ) : (
-          <div className="w-full h-32 rounded bg-slate-100 flex items-center justify-center text-xs text-slate-500">无封面</div>
-        )}
-        <div className="text-xs text-slate-600 truncate">{p.split('/').pop()}</div>
-      </div>
-      )
-    }) : <div className="p-6 text-slate-500">暂无视频</div>
-  ), [videos, videoThumbnails, videosFolder])
+  const handleCardContextMenu = (filePath, x, y) => {
+    const useCurrentSelection = selectedFiles.has(filePath) && selectedFiles.size > 1
+    const targets = useCurrentSelection ? Array.from(selectedFiles) : [filePath]
+    if (!useCurrentSelection) setSelectedFiles(new Set([filePath]))
+    setMenu({ visible: true, x, y, file: filePath, targets })
+  }
+
+  const deleteTargets = async (targets) => {
+    const unique = Array.from(new Set((targets || []).filter(Boolean)))
+    if (!unique.length) return
+    const ok = window.confirm(`确定删除选中的 ${unique.length} 个文件？此操作不可恢复`)
+    if (!ok) return
+    if (unique.length === 1) {
+      await window.api.deleteFile(unique[0])
+    } else if (window.api.deleteFiles) {
+      await window.api.deleteFiles(unique)
+    } else {
+      await Promise.all(unique.map((p) => window.api.deleteFile(p)))
+    }
+    setSelectedFiles(new Set())
+    closeMenu()
+  }
+
+  const handleOpenImage = (filePath, e) => {
+    if (e?.ctrlKey || e?.metaKey) {
+      toggleSelected(filePath)
+      return
+    }
+    setPreviewImage(filePath)
+  }
+
+  const handleOpenVideo = (filePath, e) => {
+    if (e?.ctrlKey || e?.metaKey) {
+      toggleSelected(filePath)
+      return
+    }
+    window.api.openVideo(filePath)
+  }
+
+  const filteredImages = useMemo(
+    () => images.filter(p => imagesFolder === 'all' || getFolderName(p) === imagesFolder),
+    [images, imagesFolder]
+  )
+
+  const filteredVideos = useMemo(
+    () => videos.filter(p => videosFolder === 'all' || getFolderName(p) === videosFolder),
+    [videos, videosFolder]
+  )
 
   const imageDirs = useMemo(() => {
-    const set = new Set(images.map(p => p.split('/').slice(-2, -1)[0]).filter(Boolean))
+    const set = new Set(images.map(getFolderName).filter(Boolean))
     return ['all', ...Array.from(set).sort()]
   }, [images])
 
   const videoDirs = useMemo(() => {
-    const set = new Set(videos.map(p => p.split('/').slice(-2, -1)[0]).filter(Boolean))
+    const set = new Set(videos.map(getFolderName).filter(Boolean))
     return ['all', ...Array.from(set).sort()]
   }, [videos])
 
+  const selectedCount = selectedFiles.size
+  const formatLogTime = (iso) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return String(iso)
+    return d.toLocaleTimeString()
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
-      
-      
       <main className="flex-1 w-full overflow-hidden">
         <div className="grid grid-cols-[224px_1fr] grid-rows-[56px_1fr] h-full">
           <aside className="row-span-2 overflow-hidden">
@@ -183,8 +285,10 @@ export default function App() {
                 selectedKeys={new Set([tab === 'images' ? imagesFolder : videosFolder])}
                 onSelectionChange={(keys) => {
                   const id = Array.from(keys || [])[0]
+                  if (!id) return
                   if (tab === 'images') setImagesFolder(String(id))
                   else setVideosFolder(String(id))
+                  setSelectedFiles(new Set())
                 }}
                 className="w-[224px] bg-transparent border-none p-2"
               >
@@ -212,23 +316,48 @@ export default function App() {
               </ListBox>
             </div>
           </aside>
-          <nav className="col-start-2 flex items-center px-3 border-b border-separator">
-            <TagGroup selectionMode="single" selectedKeys={new Set([tab])} onSelectionChange={(keys) => {
-              const k = Array.from(keys || [])[0]
-              setTab(String(k))
-            }} variant="surface" className="flex-1">
+          <nav className="col-start-2 flex items-center px-3 border-b border-separator gap-2">
+            <TagGroup
+              selectionMode="single"
+              selectedKeys={new Set([tab])}
+              onSelectionChange={(keys) => {
+                const k = Array.from(keys || [])[0]
+                if (!k) return
+                setTab(String(k))
+                setSelectedFiles(new Set())
+              }}
+              variant="surface"
+              className="flex-1"
+            >
               <TagGroup.List className="gap-2">
                 <Tag id="images">图片</Tag>
                 <Tag id="videos">视频</Tag>
               </TagGroup.List>
             </TagGroup>
+            {selectedCount > 0 ? (
+              <>
+                <span className="text-xs text-muted-foreground">{selectedCount} 已选</span>
+                <Button variant="secondary" className="h-9" onClick={() => deleteTargets(Array.from(selectedFiles))}>删除选中</Button>
+                <Button variant="tertiary" className="h-9" onClick={() => setSelectedFiles(new Set())}>清空选择</Button>
+              </>
+            ) : null}
             <div className="flex items-center gap-2 ml-auto">
+              <Button variant="tertiary" className="h-9 px-3" aria-label="显示日志" onClick={() => setShowLogPanel(v => !v)}>
+                日志
+              </Button>
+              <Button variant="tertiary" className="h-9 px-3" aria-label="打开开发者工具" onClick={() => window.api.openDevTools?.()}>
+                DevTools
+              </Button>
+              <Button variant="tertiary" className="h-9 px-3" aria-label="清空媒体库关联" onClick={clearLibraryLinks}>
+                清空媒体库
+              </Button>
               <Popover>
                 <Popover.Trigger>
                   <Button variant="tertiary" className="w-9 h-9" aria-label="媒体库">📁</Button>
                 </Popover.Trigger>
                 <Popover.Content className="p-2 bg-surface rounded-lg border border-border">
                   <Button variant="secondary" className="w-full mb-2" onClick={pickLibraries}>选择媒体库</Button>
+                  <Button variant="secondary" className="w-full mb-2" onClick={clearCache}>清空缓存</Button>
                   <ListBox aria-label="媒体库" selectionMode="single" className="w-[240px]" onSelectionChange={() => {}}>
                     {libraries.length ? libraries.map(d => (
                       <ListBox.Item key={d} id={d} textValue={d}>{d}</ListBox.Item>
@@ -244,14 +373,20 @@ export default function App() {
             <div className="h-full overflow-hidden p-3">
               {tab === 'images' ? (
                 <VirtualGrid
-                  items={images.filter(p => imagesFolder === 'all' || p.split('/').slice(-2, -1)[0] === imagesFolder)}
-                  renderItem={(p, { rootRef }) => (
+                  items={filteredImages}
+                  selectedKeys={selectedFiles}
+                  onSelectionChange={(keys) => setSelectedFiles(new Set(keys))}
+                  enableDragSelect
+                  getItemKey={(p) => p}
+                  renderItem={(p, { rootRef, isSelected }) => (
                     <MediaCard
                       filePath={p}
                       type="image"
+                      selected={isSelected}
                       rootRef={rootRef}
-                      onContextMenu={(file, x, y) => setMenu({ visible: true, x, y, file })}
-                      onOpenVideo={(file) => window.api.openVideo(file)}
+                      onContextMenu={handleCardContextMenu}
+                      onOpenImage={handleOpenImage}
+                      onOpenVideo={handleOpenVideo}
                       formatBytes={formatBytes}
                       formatDuration={formatDuration}
                       loadVideoMeta={loadVideoMeta}
@@ -265,15 +400,21 @@ export default function App() {
                 />
               ) : (
                 <VirtualGrid
-                  items={videos.filter(p => videosFolder === 'all' || p.split('/').slice(-2, -1)[0] === videosFolder)}
-                  renderItem={(p, { rootRef }) => (
+                  items={filteredVideos}
+                  selectedKeys={selectedFiles}
+                  onSelectionChange={(keys) => setSelectedFiles(new Set(keys))}
+                  enableDragSelect
+                  getItemKey={(p) => p}
+                  renderItem={(p, { rootRef, isSelected }) => (
                     <MediaCard
                       filePath={p}
                       type="video"
+                      selected={isSelected}
                       rootRef={rootRef}
                       thumbPath={videoThumbnails[p]}
-                      onContextMenu={(file, x, y) => setMenu({ visible: true, x, y, file })}
-                      onOpenVideo={(file) => window.api.openVideo(file)}
+                      onContextMenu={handleCardContextMenu}
+                      onOpenImage={handleOpenImage}
+                      onOpenVideo={handleOpenVideo}
                       formatBytes={formatBytes}
                       formatDuration={formatDuration}
                       loadVideoMeta={loadVideoMeta}
@@ -307,19 +448,45 @@ export default function App() {
           display: menu.visible ? 'block' : 'none'
         }}
       >
-        <button className="block w-full text-left px-3 py-2 hover:bg-muted" onClick={() => { window.api.showInFolder(menu.file); setMenu({ visible: false, x: 0, y: 0, file: null }) }}>
-          打开所在文件夹
-        </button>
-        <button className="block w-full text-left px-3 py-2 text-danger hover:bg-muted" onClick={async () => {
-          const ok = window.confirm('确定删除此文件？此操作不可恢复')
-          if (ok) {
-            await window.api.deleteFile(menu.file)
-          }
-          setMenu({ visible: false, x: 0, y: 0, file: null })
-        }}>
-          删除
+        {(menu.targets || []).length <= 1 ? (
+          <button className="block w-full text-left px-3 py-2 hover:bg-muted" onClick={() => { window.api.showInFolder(menu.file); closeMenu() }}>
+            打开所在文件夹
+          </button>
+        ) : null}
+        <button className="block w-full text-left px-3 py-2 text-danger hover:bg-muted" onClick={() => deleteTargets((menu.targets || []).length ? menu.targets : [menu.file])}>
+          {(menu.targets || []).length > 1 ? `删除选中 (${menu.targets.length})` : '删除'}
         </button>
       </div>
+
+      {showLogPanel ? (
+        <div className="fixed inset-x-3 bottom-3 z-[1350] h-[240px] rounded-md border border-border bg-black/90 text-emerald-100 shadow-2xl">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-white/20 text-xs">
+            <span className="font-medium">调试日志</span>
+            <span className="opacity-80">Ctrl+Shift+L 切换</span>
+            <span className="opacity-80">Ctrl+Shift+I 或 F12 打开 DevTools</span>
+            <Button variant="tertiary" className="h-7 ml-auto px-2" onClick={() => setDebugLogs([])}>清空面板</Button>
+            <Button variant="tertiary" className="h-7 px-2" onClick={() => setShowLogPanel(false)}>关闭</Button>
+          </div>
+          <div className="h-[calc(100%-41px)] overflow-auto px-3 py-2 text-[11px] leading-5 font-mono">
+            {debugLogs.length ? debugLogs.slice().reverse().map((entry, idx) => (
+              <div key={`${entry.time || 'na'}-${idx}`} className="whitespace-pre-wrap break-all">
+                [{formatLogTime(entry.time)}] [{entry.level || 'info'}] {entry.message || ''} {entry.data ? JSON.stringify(entry.data) : ''}
+              </div>
+            )) : <div className="opacity-70">暂无日志</div>}
+          </div>
+        </div>
+      ) : null}
+
+      {previewImage ? (
+        <div className="fixed inset-0 z-[1300] bg-black/85 flex items-center justify-center p-6" onClick={() => setPreviewImage(null)}>
+          <img
+            src={toSafeFileUrl(previewImage)}
+            alt=""
+            className="max-w-[92vw] max-h-[88vh] object-contain rounded-md shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
